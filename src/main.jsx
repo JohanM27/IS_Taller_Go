@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 import "./styles.css";
 
 const views = [
@@ -46,7 +47,85 @@ const orders = [
 
 function App() {
   const [activeView, setActiveView] = useState("dashboard");
+  const [session, setSession] = useState(null);
+  const [dashboardData, setDashboardData] = useState({
+    orders,
+    clientesCount: 124,
+    stockBajoCount: 7,
+    loading: false,
+    error: ""
+  });
   const currentView = views.find((view) => view.id === activeView);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      return undefined;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !session) {
+      return;
+    }
+
+    async function loadDashboardData() {
+      setDashboardData((current) => ({ ...current, loading: true, error: "" }));
+
+      const [ordenesResponse, clientesResponse, stockResponse] = await Promise.all([
+        supabase
+          .from("resumen_ordenes")
+          .select("codigo,cliente,vehiculo,estado,total_orden")
+          .order("fecha_ingreso", { ascending: false })
+          .limit(8),
+        supabase.from("clientes").select("id", { count: "exact", head: true }),
+        supabase.from("repuestos_stock_bajo").select("id", { count: "exact", head: true })
+      ]);
+
+      const firstError = ordenesResponse.error || clientesResponse.error || stockResponse.error;
+
+      if (firstError) {
+        setDashboardData((current) => ({
+          ...current,
+          loading: false,
+          error: "No se pudieron cargar datos de Supabase. Revisa tus variables .env y politicas RLS."
+        }));
+        return;
+      }
+
+      setDashboardData({
+        orders: ordenesResponse.data.map((order) => ({
+          codigo: order.codigo,
+          cliente: order.cliente,
+          vehiculo: order.vehiculo,
+          estado: formatEstado(order.estado),
+          total: formatCurrency(order.total_orden),
+          tone: statusTone(order.estado)
+        })),
+        clientesCount: clientesResponse.count ?? 0,
+        stockBajoCount: stockResponse.count ?? 0,
+        loading: false,
+        error: ""
+      });
+    }
+
+    loadDashboardData();
+  }, [session]);
+
+  if (isSupabaseConfigured && !session) {
+    return <Login />;
+  }
 
   return (
     <>
@@ -81,10 +160,15 @@ function App() {
           <button className="primary-action" type="button">
             Nueva orden
           </button>
+          {isSupabaseConfigured && (
+            <button className="ghost-action" onClick={() => supabase.auth.signOut()} type="button">
+              Salir
+            </button>
+          )}
         </header>
 
-        {activeView === "dashboard" && <Dashboard />}
-        {activeView === "ordenes" && <Ordenes />}
+        {activeView === "dashboard" && <Dashboard data={dashboardData} />}
+        {activeView === "ordenes" && <Ordenes orders={dashboardData.orders} />}
         {activeView === "clientes" && <Clientes />}
         {activeView === "inventario" && <Inventario />}
       </main>
@@ -92,14 +176,77 @@ function App() {
   );
 }
 
-function Dashboard() {
+function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password
+    });
+
+    if (signInError) {
+      setError(`No se pudo iniciar sesion: ${signInError.message}`);
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <main className="login-page">
+      <section className="login-panel">
+        <div className="brand login-brand">
+          <span className="brand-mark">TG</span>
+          <div>
+            <strong>TallerGo</strong>
+            <small>Acceso del sistema</small>
+          </div>
+        </div>
+        <form className="form-preview" onSubmit={handleSubmit}>
+          <label>
+            Correo
+            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+          </label>
+          <label>
+            Contrasena
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
+          </label>
+          {error && <div className="notice error">{error}</div>}
+          <button className="primary-action" disabled={loading} type="submit">
+            {loading ? "Ingresando..." : "Ingresar"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function Dashboard({ data }) {
+  const ordenesActivas = useMemo(
+    () => data.orders.filter((order) => !["Finalizada", "Facturada", "Entregada"].includes(order.estado)).length,
+    [data.orders]
+  );
+
   return (
     <section>
+      {!isSupabaseConfigured && (
+        <div className="notice">
+          Datos de ejemplo activos. Configura `.env` para conectar Supabase.
+        </div>
+      )}
+      {data.error && <div className="notice error">{data.error}</div>}
       <div className="metrics">
-        <Metric label="Ordenes activas" value="18" detail="6 en proceso" />
-        <Metric label="Clientes registrados" value="124" detail="9 nuevos este mes" />
-        <Metric label="Ingresos estimados" value="L 42,850" detail="Periodo actual" />
-        <Metric label="Stock bajo" value="7" detail="Repuestos por revisar" alert />
+        <Metric label="Ordenes activas" value={data.loading ? "..." : ordenesActivas} detail="Pendientes o en proceso" />
+        <Metric label="Clientes registrados" value={data.loading ? "..." : data.clientesCount} detail="Base de clientes" />
+        <Metric label="Ingresos estimados" value={data.loading ? "..." : sumOrderTotals(data.orders)} detail="Ordenes cargadas" />
+        <Metric label="Stock bajo" value={data.loading ? "..." : data.stockBajoCount} detail="Repuestos por revisar" alert />
       </div>
 
       <div className="content-grid">
@@ -122,7 +269,7 @@ function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => (
+                {data.orders.map((order) => (
                   <tr key={order.codigo}>
                     <td>{order.codigo}</td>
                     <td>{order.cliente}</td>
@@ -176,7 +323,14 @@ function Metric({ label, value, detail, alert = false }) {
   );
 }
 
-function Ordenes() {
+function Ordenes({ orders: loadedOrders }) {
+  const groupedOrders = {
+    Pendiente: loadedOrders.filter((order) => order.estado === "Pendiente"),
+    "En proceso": loadedOrders.filter((order) => order.estado === "En proceso"),
+    Finalizada: loadedOrders.filter((order) => order.estado === "Finalizada"),
+    Entregada: loadedOrders.filter((order) => order.estado === "Entregada")
+  };
+
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -186,10 +340,13 @@ function Ordenes() {
         </button>
       </div>
       <div className="kanban">
-        <Lane title="Pendiente" items={["Revision de frenos - P-4812", "Cambio de aceite - P-4901"]} />
-        <Lane title="En proceso" items={["Diagnostico electrico - P-4877", "Alineacion - P-4883"]} />
-        <Lane title="Finalizada" items={["Servicio menor - P-4860"]} />
-        <Lane title="Entregada" items={["Cambio de bateria - P-4822"]} />
+        {Object.entries(groupedOrders).map(([title, items]) => (
+          <Lane
+            key={title}
+            title={title}
+            items={items.length ? items.map((order) => `${order.codigo} - ${order.cliente}`) : ["Sin ordenes"]}
+          />
+        ))}
       </div>
     </section>
   );
@@ -266,3 +423,44 @@ createRoot(document.getElementById("root")).render(
     <App />
   </React.StrictMode>
 );
+
+function formatEstado(estado) {
+  const labels = {
+    pendiente: "Pendiente",
+    en_proceso: "En proceso",
+    finalizada: "Finalizada",
+    facturada: "Facturada",
+    entregada: "Entregada"
+  };
+
+  return labels[estado] ?? estado;
+}
+
+function statusTone(estado) {
+  if (["finalizada", "facturada", "entregada"].includes(estado)) {
+    return "done";
+  }
+
+  if (estado === "pendiente") {
+    return "warn";
+  }
+
+  return "";
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("es-HN", {
+    style: "currency",
+    currency: "HNL",
+    maximumFractionDigits: 2
+  }).format(Number(value ?? 0));
+}
+
+function sumOrderTotals(loadedOrders) {
+  const total = loadedOrders.reduce((sum, order) => {
+    const numericValue = Number(String(order.total).replace(/[^\d.-]/g, ""));
+    return sum + (Number.isNaN(numericValue) ? 0 : numericValue);
+  }, 0);
+
+  return formatCurrency(total);
+}

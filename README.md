@@ -39,9 +39,12 @@ Desarrollar una primera version funcional que permita al personal administrativo
 .
 ├── docs/
 │   ├── arquitectura.md
+│   ├── datos-prueba.sql
 │   ├── modelo-datos.sql
+│   ├── permisos-supabase.sql
 │   ├── requerimientos.md
-│   └── roadmap.md
+│   ├── roadmap.md
+│   └── supabase-guia.md
 ├── src/
 │   ├── main.jsx
 │   └── styles.css
@@ -55,7 +58,9 @@ Desarrollar una primera version funcional que permita al personal administrativo
 - Definicion profesional del alcance del sistema.
 - Requerimientos funcionales y no funcionales iniciales.
 - Arquitectura de referencia en tres capas.
-- Modelo de datos inicial para PostgreSQL.
+- Modelo de datos inicial para PostgreSQL/Supabase.
+- Datos de prueba para validar clientes, vehiculos, ordenes, repuestos y pagos.
+- Guia paso a paso para crear la base de datos en Supabase.
 - Prototipo web navegable en React/Vite para presentar el concepto.
 
 ## Como ejecutar el proyecto
@@ -77,3 +82,22 @@ Abre la URL que muestra la terminal. Por defecto:
 ```text
 http://127.0.0.1:5173
 ```
+
+## Como conectar Supabase
+
+Copia el archivo de ejemplo:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Luego edita `.env` con los datos de tu proyecto:
+
+```text
+VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
+VITE_SUPABASE_ANON_KEY=tu_llave_publica_anon
+```
+
+Reinicia el servidor con `npm run dev`. Como la base usa RLS, primero veras una pantalla de login. Ingresa con el usuario que creaste en Supabase y que registraste en la tabla `perfiles`.
+
+El dashboard cargara datos reales desde `resumen_ordenes`, `clientes` y `repuestos_stock_bajo`.
