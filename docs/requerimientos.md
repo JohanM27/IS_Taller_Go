@@ -29,7 +29,7 @@ El sistema debe permitir asociar uno o varios vehiculos a un cliente.
 
 Criterios de aceptacion:
 
-- Registrar placa, marca, modelo, anio y color.
+- Registrar placa, marca, modelo, año y color.
 - Consultar el historial de ordenes por vehiculo.
 - Validar que la placa no se repita.
 

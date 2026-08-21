@@ -49,3 +49,28 @@ export const demoClients = [
     direccion: "Comayaguela"
   }
 ];
+
+export const demoVehicles = [
+  {
+    id: "vehicle-demo-1",
+    cliente_id: "demo-1",
+    placa: "HAA-4812",
+    marca: "Toyota",
+    modelo: "Corolla",
+    anio: 2017,
+    color: "Gris",
+    kilometraje: 82000,
+    clientes: { nombre: "Carlos Mejia" }
+  },
+  {
+    id: "vehicle-demo-2",
+    cliente_id: "demo-2",
+    placa: "HBB-4901",
+    marca: "Honda",
+    modelo: "Civic",
+    anio: 2019,
+    color: "Azul",
+    kilometraje: 61000,
+    clientes: { nombre: "Andrea Lopez" }
+  }
+];

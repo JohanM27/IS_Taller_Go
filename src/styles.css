@@ -31,7 +31,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -408,7 +409,8 @@ label {
   color: #b91c1c;
 }
 
-input {
+input,
+select {
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid var(--line);
