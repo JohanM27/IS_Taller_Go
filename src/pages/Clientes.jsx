@@ -162,7 +162,7 @@ export function Clientes() {
             />
           </label>
           <label>
-            Nombre <span className="required">*</span>
+            <span className="field-label">Nombre <span className="required">*</span></span>
             <input
               value={form.nombre}
               onChange={(event) => updateField("nombre", event.target.value)}
@@ -171,7 +171,7 @@ export function Clientes() {
             />
           </label>
           <label>
-            Telefono <span className="required">*</span>
+            <span className="field-label">Telefono <span className="required">*</span></span>
             <input
               value={form.telefono}
               onChange={(event) => updateField("telefono", event.target.value)}
@@ -210,7 +210,7 @@ export function Clientes() {
           <h2>Registro de vehículo</h2>
         <form className="form-grid" onSubmit={handleVehicleSubmit}>
           <label className="field-wide">
-            Cliente <span className="required">*</span>
+            <span className="field-label">Cliente <span className="required">*</span></span>
             <select
               value={vehicleForm.cliente_id}
               onChange={(event) => updateVehicleField("cliente_id", event.target.value)}
@@ -225,7 +225,7 @@ export function Clientes() {
             </select>
           </label>
           <label>
-            Placa <span className="required">*</span>
+            <span className="field-label">Placa <span className="required">*</span></span>
             <input
               value={vehicleForm.placa}
               onChange={(event) => updateVehicleField("placa", event.target.value)}
@@ -234,7 +234,7 @@ export function Clientes() {
             />
           </label>
           <label>
-            Marca <span className="required">*</span>
+            <span className="field-label">Marca <span className="required">*</span></span>
             <input
               value={vehicleForm.marca}
               onChange={(event) => updateVehicleField("marca", event.target.value)}
@@ -243,7 +243,7 @@ export function Clientes() {
             />
           </label>
           <label>
-            Modelo <span className="required">*</span>
+            <span className="field-label">Modelo <span className="required">*</span></span>
             <input
               value={vehicleForm.modelo}
               onChange={(event) => updateVehicleField("modelo", event.target.value)}

@@ -41,7 +41,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -614,7 +615,7 @@ tbody tr:last-child td {
 
 .order-card {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   margin-bottom: 10px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 }
@@ -627,6 +628,28 @@ tbody tr:last-child td {
 
 .order-card small {
   font-size: 12px;
+}
+
+.order-card-footer {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.status-select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.status-select:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .empty-lane {
@@ -688,12 +711,19 @@ label {
   font-weight: 800;
 }
 
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .required {
   color: #b91c1c;
 }
 
 input,
-select {
+select,
+textarea {
   min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--line);
@@ -705,12 +735,31 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(15, 138, 124, 0.12);
 }
 
 input::placeholder {
+  color: #94a3b8;
+}
+
+input[readonly] {
+  border-style: dashed;
+  background: var(--surface-soft);
+  color: #475569;
+  font-weight: 800;
+  cursor: default;
+}
+
+textarea {
+  min-height: 88px;
+  padding-top: 11px;
+  resize: vertical;
+}
+
+textarea::placeholder {
   color: #94a3b8;
 }
 

@@ -38,24 +38,24 @@ export function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  async function loadDashboardData() {
+    setDashboardData((current) => ({ ...current, loading: true, error: "" }));
+
+    try {
+      const data = await getDashboardData();
+      setDashboardData({ ...data, loading: false, error: "" });
+    } catch {
+      setDashboardData((current) => ({
+        ...current,
+        loading: false,
+        error: "No se pudieron cargar datos de Supabase. Revisa tus variables .env y politicas RLS."
+      }));
+    }
+  }
+
   useEffect(() => {
     if (!isSupabaseConfigured || !session) {
       return;
-    }
-
-    async function loadDashboardData() {
-      setDashboardData((current) => ({ ...current, loading: true, error: "" }));
-
-      try {
-        const data = await getDashboardData();
-        setDashboardData({ ...data, loading: false, error: "" });
-      } catch {
-        setDashboardData((current) => ({
-          ...current,
-          loading: false,
-          error: "No se pudieron cargar datos de Supabase. Revisa tus variables .env y politicas RLS."
-        }));
-      }
     }
 
     loadDashboardData();
@@ -68,7 +68,7 @@ export function App() {
   return (
     <Layout activeView={activeView} onViewChange={setActiveView}>
       {activeView === "dashboard" && <Dashboard data={dashboardData} />}
-      {activeView === "ordenes" && <Ordenes orders={dashboardData.orders} />}
+      {activeView === "ordenes" && <Ordenes orders={dashboardData.orders} onOrdersChanged={loadDashboardData} />}
       {activeView === "clientes" && <Clientes />}
       {activeView === "inventario" && <Inventario />}
     </Layout>
