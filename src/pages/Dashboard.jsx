@@ -11,9 +11,21 @@ export function Dashboard({ data }) {
   );
 
   return (
-    <section>
+    <section className="page-stack">
       {!isSupabaseConfigured && <Notice>Datos de ejemplo activos. Configura `.env` para conectar Supabase.</Notice>}
       {data.error && <Notice type="error">{data.error}</Notice>}
+
+      <section className="hero-band">
+        <div>
+          <span className="section-label">Resumen del dia</span>
+          <h2>Control operativo del taller</h2>
+        </div>
+        <div className="hero-meta">
+          <span>Recepcion</span>
+          <strong>{data.loading ? "..." : `${ordenesActivas} ordenes activas`}</strong>
+        </div>
+      </section>
+
       <div className="metrics">
         <Metric label="Ordenes activas" value={data.loading ? "..." : ordenesActivas} detail="Pendientes o en proceso" />
         <Metric label="Clientes registrados" value={data.loading ? "..." : data.clientesCount} detail="Base de clientes" />
@@ -35,7 +47,7 @@ export function Dashboard({ data }) {
                 <tr>
                   <th>Codigo</th>
                   <th>Cliente</th>
-                  <th>Vehiculo</th>
+                  <th>Vehículo</th>
                   <th>Estado</th>
                   <th>Total</th>
                 </tr>
@@ -57,14 +69,14 @@ export function Dashboard({ data }) {
           </div>
         </section>
 
-        <section className="panel">
+        <section className="panel compact-panel">
           <div className="panel-heading">
             <h2>Flujo de atencion</h2>
           </div>
           <ol className="timeline">
             <li>
               <strong>Recepcion</strong>
-              <span>Cliente y vehiculo registrados.</span>
+              <span>Cliente y vehículo registrados.</span>
             </li>
             <li>
               <strong>Diagnostico</strong>

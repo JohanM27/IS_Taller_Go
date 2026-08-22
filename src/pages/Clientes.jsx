@@ -50,7 +50,7 @@ export function Clientes() {
       const data = await getVehiculos();
       setVehicles(data);
     } catch (loadError) {
-      setVehicleError(`No se pudieron cargar los vehiculos: ${loadError.message}`);
+      setVehicleError(`No se pudieron cargar los vehículos: ${loadError.message}`);
     } finally {
       setVehiclesLoading(false);
     }
@@ -114,7 +114,7 @@ export function Clientes() {
       };
       setVehicles((current) => [newVehicle, ...current]);
       setVehicleForm(emptyVehicleForm());
-      setVehicleMessage("Vehiculo agregado en modo demostracion.");
+      setVehicleMessage("Vehículo agregado en modo demostración.");
       return;
     }
 
@@ -123,10 +123,10 @@ export function Clientes() {
     try {
       await createVehiculo(cleanVehicleForm(vehicleForm));
       setVehicleForm(emptyVehicleForm());
-      setVehicleMessage("Vehiculo guardado correctamente.");
+      setVehicleMessage("Vehículo guardado correctamente.");
       await loadVehicles();
     } catch (insertError) {
-      setVehicleError(`No se pudo guardar el vehiculo: ${insertError.message}`);
+      setVehicleError(`No se pudo guardar el vehículo: ${insertError.message}`);
     } finally {
       setVehicleSaving(false);
     }
@@ -137,11 +137,21 @@ export function Clientes() {
   }
 
   return (
-    <div className="module-stack">
-      <section className="panel">
-        <div className="panel-heading">
-          <h2>Registro de cliente</h2>
+    <div className="page-stack">
+      <section className="hero-band">
+        <div>
+          <span className="section-label">Recepcion</span>
+          <h2>Clientes y vehiculos</h2>
         </div>
+        <div className="hero-meta">
+          <span>Activos</span>
+          <strong>{clients.length} clientes</strong>
+        </div>
+      </section>
+
+      <div className="management-grid">
+      <section className="panel form-panel">
+        <h2>Registro de cliente</h2>
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
             Identidad
@@ -196,39 +206,8 @@ export function Clientes() {
         </form>
       </section>
 
-      <section className="panel">
-        <div className="panel-heading">
-          <h2>Clientes registrados</h2>
-          <span className="count-pill">{loading ? "Cargando..." : `${clients.length} activos`}</span>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Telefono</th>
-                <th>Correo</th>
-                <th>Direccion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((client) => (
-                <tr key={client.id}>
-                  <td>{client.nombre}</td>
-                  <td>{client.telefono}</td>
-                  <td>{client.correo || "Sin correo"}</td>
-                  <td>{client.direccion || "Sin direccion"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel-heading">
-          <h2>Registro de vehiculo</h2>
-        </div>
+      <section className="panel form-panel">
+          <h2>Registro de vehículo</h2>
         <form className="form-grid" onSubmit={handleVehicleSubmit}>
           <label className="field-wide">
             Cliente <span className="required">*</span>
@@ -302,44 +281,74 @@ export function Clientes() {
             {vehicleMessage && <Notice type="success">{vehicleMessage}</Notice>}
             {vehicleError && <Notice type="error">{vehicleError}</Notice>}
             <button className="primary-action" disabled={vehicleSaving} type="submit">
-              {vehicleSaving ? "Guardando..." : "Guardar vehiculo"}
+              {vehicleSaving ? "Guardando..." : "Guardar vehículo"}
             </button>
           </div>
         </form>
       </section>
+      </div>
 
       <section className="panel">
         <div className="panel-heading">
-          <h2>Vehiculos registrados</h2>
-          <span className="count-pill">{vehiclesLoading ? "Cargando..." : `${vehicles.length} activos`}</span>
+          <h2>Clientes registrados</h2>
+          <span className="count-pill">{loading ? "Cargando..." : `${clients.length} activos`}</span>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>Placa</th>
-                <th>Marca</th>
-                <th>Modelo</th>
-                <th>Año</th>
-                <th>Color</th>
-                <th>Kilometraje</th>
+                <th>Nombre</th>
+                <th>Telefono</th>
+                <th>Correo</th>
+                <th>Direccion</th>
               </tr>
             </thead>
             <tbody>
-              {vehicles.map((vehicle) => (
-                <tr key={vehicle.id}>
-                  <td>{vehicle.clientes?.nombre || "Sin cliente"}</td>
-                  <td>{vehicle.placa}</td>
-                  <td>{vehicle.marca}</td>
-                  <td>{vehicle.modelo}</td>
-                  <td>{vehicle.anio || "N/D"}</td>
-                  <td>{vehicle.color || "N/D"}</td>
-                  <td>{vehicle.kilometraje ? Number(vehicle.kilometraje).toLocaleString("es-HN") : "N/D"}</td>
+              {clients.map((client) => (
+                <tr key={client.id}>
+                  <td>{client.nombre}</td>
+                  <td>{client.telefono}</td>
+                  <td>{client.correo || "Sin correo"}</td>
+                  <td>{client.direccion || "Sin direccion"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Vehículos registrados</h2>
+          <span className="count-pill">{vehiclesLoading ? "Cargando..." : `${vehicles.length} activos`}</span>
+        </div>
+        <div className="vehicle-grid">
+          {vehicles.map((vehicle) => (
+            <article className="vehicle-card" key={vehicle.id}>
+              <div>
+                <strong>{vehicle.placa}</strong>
+                <span>{vehicle.marca} {vehicle.modelo}</span>
+              </div>
+              <dl>
+                <div>
+                  <dt>Cliente</dt>
+                  <dd>{vehicle.clientes?.nombre || "Sin cliente"}</dd>
+                </div>
+                <div>
+                  <dt>Año</dt>
+                  <dd>{vehicle.anio || "N/D"}</dd>
+                </div>
+                <div>
+                  <dt>Color</dt>
+                  <dd>{vehicle.color || "N/D"}</dd>
+                </div>
+                <div>
+                  <dt>Kilometraje</dt>
+                  <dd>{vehicle.kilometraje ? Number(vehicle.kilometraje).toLocaleString("es-HN") : "N/D"}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
         </div>
       </section>
     </div>
