@@ -27,7 +27,7 @@ Ejecuta el script completo. Esto crea:
 
 Desde `Authentication > Users`, crea al menos un usuario para pruebas.
 
-Luego, en SQL Editor, registra su perfil:
+Luego, en SQL Editor, registra su perfil como administrador:
 
 ```sql
 insert into perfiles (id, nombre, rol)
@@ -40,8 +40,19 @@ values (
 
 Roles permitidos:
 
-- `administrador`
-- `recepcion`
+- `administrador`: muestra el menú de Administrador/Dueño.
+- `recepcion`: muestra el menú de Recepción/Caja.
+
+Ejemplo para usuario de Recepción/Caja:
+
+```sql
+insert into perfiles (id, nombre, rol)
+values (
+    'PEGAR_AQUI_EL_ID_DEL_USUARIO',
+    'Usuario Recepción/Caja',
+    'recepcion'
+);
+```
 
 ## 4. Insertar datos de prueba
 

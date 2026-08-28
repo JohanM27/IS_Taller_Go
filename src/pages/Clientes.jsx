@@ -1,9 +1,54 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Notice } from "../components/Notice";
 import { demoClients, demoVehicles } from "../data/demoData";
 import { createCliente, getClientes } from "../services/clientesService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { createVehiculo, getVehiculos } from "../services/vehiculosService";
+
+const VEHICLE_CATALOG = [
+  {
+    marca: "Toyota",
+    modelos: ["Corolla", "Hilux", "RAV4", "Yaris", "Prado", "Tacoma"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Rojo", "Azul"]
+  },
+  {
+    marca: "Honda",
+    modelos: ["Civic", "CR-V", "HR-V", "Accord", "Pilot", "Fit"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Rojo"]
+  },
+  {
+    marca: "Hyundai",
+    modelos: ["Tucson", "Elantra", "Accent", "Santa Fe", "Creta", "H-1"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Beige"]
+  },
+  {
+    marca: "Kia",
+    modelos: ["Sportage", "Rio", "Sorento", "Picanto", "Seltos", "Carnival"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Rojo", "Azul"]
+  },
+  {
+    marca: "Nissan",
+    modelos: ["Frontier", "Versa", "Sentra", "X-Trail", "Kicks", "Pathfinder"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Rojo", "Azul"]
+  },
+  {
+    marca: "Ford",
+    modelos: ["Ranger", "Escape", "Explorer", "F-150", "Focus", "EcoSport"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Rojo"]
+  },
+  {
+    marca: "Chevrolet",
+    modelos: ["Colorado", "Spark", "Aveo", "Trax", "Equinox", "Silverado"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Rojo", "Azul"]
+  },
+  {
+    marca: "Mitsubishi",
+    modelos: ["L200", "Montero", "Outlander", "ASX", "Mirage", "Eclipse Cross"],
+    colores: ["Blanco", "Negro", "Gris", "Plata", "Rojo", "Azul"]
+  }
+];
+
+const VEHICLE_YEARS = Array.from({ length: 22 }, (_, index) => String(new Date().getFullYear() + 1 - index));
 
 export function Clientes() {
   const [clients, setClients] = useState(demoClients);
@@ -18,6 +63,11 @@ export function Clientes() {
   const [vehicleMessage, setVehicleMessage] = useState("");
   const [error, setError] = useState("");
   const [vehicleError, setVehicleError] = useState("");
+
+  const selectedVehicleBrand = useMemo(
+    () => VEHICLE_CATALOG.find((item) => item.marca === vehicleForm.marca),
+    [vehicleForm.marca]
+  );
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -133,7 +183,21 @@ export function Clientes() {
   }
 
   function updateVehicleField(field, value) {
-    setVehicleForm((current) => ({ ...current, [field]: value }));
+    setVehicleForm((current) => {
+      const next = { ...current, [field]: value };
+
+      if (field === "marca") {
+        next.modelo = "";
+        next.anio = "";
+        next.color = "";
+      }
+
+      if (field === "modelo") {
+        next.anio = "";
+      }
+
+      return next;
+    });
   }
 
   return (
@@ -235,38 +299,64 @@ export function Clientes() {
           </label>
           <label>
             <span className="field-label">Marca <span className="required">*</span></span>
-            <input
+            <select
               value={vehicleForm.marca}
               onChange={(event) => updateVehicleField("marca", event.target.value)}
-              placeholder="Toyota"
               required
-            />
+            >
+              <option value="">Seleccionar marca</option>
+              {VEHICLE_CATALOG.map((brand) => (
+                <option key={brand.marca} value={brand.marca}>
+                  {brand.marca}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             <span className="field-label">Modelo <span className="required">*</span></span>
-            <input
+            <select
               value={vehicleForm.modelo}
               onChange={(event) => updateVehicleField("modelo", event.target.value)}
-              placeholder="Corolla"
+              disabled={!selectedVehicleBrand}
               required
-            />
+            >
+              <option value="">Seleccionar modelo</option>
+              {selectedVehicleBrand?.modelos.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Año
-            <input
+            <select
               value={vehicleForm.anio}
               onChange={(event) => updateVehicleField("anio", event.target.value)}
-              placeholder="2017"
-              type="number"
-            />
+              disabled={!vehicleForm.modelo}
+            >
+              <option value="">Seleccionar año</option>
+              {VEHICLE_YEARS.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Color
-            <input
+            <select
               value={vehicleForm.color}
               onChange={(event) => updateVehicleField("color", event.target.value)}
-              placeholder="Gris"
-            />
+              disabled={!selectedVehicleBrand}
+            >
+              <option value="">Seleccionar color</option>
+              {selectedVehicleBrand?.colores.map((color) => (
+                <option key={color} value={color}>
+                  {color}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Kilometraje

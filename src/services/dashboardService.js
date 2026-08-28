@@ -5,7 +5,7 @@ export async function getDashboardData() {
   const [ordenesResponse, clientesResponse, stockResponse] = await Promise.all([
     supabase
       .from("resumen_ordenes")
-      .select("codigo,cliente,vehiculo,estado,total_orden")
+      .select("id,codigo,cliente,vehiculo,estado,total_orden,total_pagado,saldo_pendiente")
       .order("fecha_ingreso", { ascending: false })
       .limit(8),
     supabase.from("clientes").select("id", { count: "exact", head: true }),
@@ -20,11 +20,18 @@ export async function getDashboardData() {
 
   return {
     orders: ordenesResponse.data.map((order) => ({
+      id: order.id,
       codigo: order.codigo,
       cliente: order.cliente,
       vehiculo: order.vehiculo,
+      estadoRaw: order.estado,
       estado: formatEstado(order.estado),
       total: formatCurrency(order.total_orden),
+      totalRaw: Number(order.total_orden ?? 0),
+      totalPagado: formatCurrency(order.total_pagado),
+      totalPagadoRaw: Number(order.total_pagado ?? 0),
+      saldoPendiente: formatCurrency(order.saldo_pendiente),
+      saldoPendienteRaw: Number(order.saldo_pendiente ?? 0),
       tone: statusTone(order.estado)
     })),
     clientesCount: clientesResponse.count ?? 0,

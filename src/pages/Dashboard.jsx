@@ -17,35 +17,32 @@ export function Dashboard({ data }) {
 
       <section className="hero-band">
         <div>
-          <span className="section-label">Resumen del dia</span>
-          <h2>Control operativo del taller</h2>
+          <span className="section-label">Resumen del día</span>
+          <h2>Administración y caja</h2>
         </div>
         <div className="hero-meta">
-          <span>Recepcion</span>
-          <strong>{data.loading ? "..." : `${ordenesActivas} ordenes activas`}</strong>
+          <span>Recepción</span>
+          <strong>{data.loading ? "..." : `${ordenesActivas} órdenes activas`}</strong>
         </div>
       </section>
 
       <div className="metrics">
-        <Metric label="Ordenes activas" value={data.loading ? "..." : ordenesActivas} detail="Pendientes o en proceso" />
+        <Metric label="Órdenes activas" value={data.loading ? "..." : ordenesActivas} detail="Pendientes o en proceso" />
         <Metric label="Clientes registrados" value={data.loading ? "..." : data.clientesCount} detail="Base de clientes" />
-        <Metric label="Ingresos estimados" value={data.loading ? "..." : sumOrderTotals(data.orders)} detail="Ordenes cargadas" />
+        <Metric label="Ingresos estimados" value={data.loading ? "..." : sumOrderTotals(data.orders)} detail="Órdenes cargadas" />
         <Metric label="Stock bajo" value={data.loading ? "..." : data.stockBajoCount} detail="Repuestos por revisar" alert />
       </div>
 
       <div className="content-grid">
         <section className="panel">
           <div className="panel-heading">
-            <h2>Ordenes recientes</h2>
-            <button className="ghost-action" type="button">
-              Ver todas
-            </button>
+            <h2>Órdenes recientes</h2>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Codigo</th>
+                  <th>Código</th>
                   <th>Cliente</th>
                   <th>Vehículo</th>
                   <th>Estado</th>
@@ -71,15 +68,15 @@ export function Dashboard({ data }) {
 
         <section className="panel compact-panel">
           <div className="panel-heading">
-            <h2>Flujo de atencion</h2>
+            <h2>Flujo de atención</h2>
           </div>
           <ol className="timeline">
             <li>
-              <strong>Recepcion</strong>
+              <strong>Recepción</strong>
               <span>Cliente y vehículo registrados.</span>
             </li>
             <li>
-              <strong>Diagnostico</strong>
+              <strong>Diagnóstico</strong>
               <span>Orden creada con problema reportado.</span>
             </li>
             <li>
