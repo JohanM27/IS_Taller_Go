@@ -6,8 +6,7 @@ import {
   addRepuestoToOrden,
   addServicioToOrden,
   createOrdenTrabajo,
-  getOrdenes,
-  updateOrdenEstado
+  getOrdenes
 } from "../services/ordenesService";
 import { getRepuestos } from "../services/repuestosService";
 import { getServicios } from "../services/serviciosService";
@@ -15,15 +14,8 @@ import { isSupabaseConfigured } from "../services/supabaseClient";
 import { getVehiculos } from "../services/vehiculosService";
 import { formatCurrency } from "../utils/formatters";
 
-const ORDER_STATUSES = [
-  { value: "pendiente", label: "Pendiente" },
-  { value: "en_proceso", label: "En proceso" },
-  { value: "finalizada", label: "Finalizada" },
-  { value: "facturada", label: "Facturada" },
-  { value: "entregada", label: "Entregada" }
-];
-
-export function Ordenes({ orders: loadedOrders, onOrdersChanged }) {
+export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
+  const isReadOnly = role === "administrador";
   const [orders, setOrders] = useState(loadedOrders);
   const [clients, setClients] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -34,7 +26,6 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingDetail, setSavingDetail] = useState(false);
-  const [updatingCode, setUpdatingCode] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -81,10 +72,10 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged }) {
     [vehicles, form.cliente_id]
   );
 
-  const groupedOrders = ORDER_STATUSES.reduce((groups, status) => {
-    groups[status.label] = orders.filter((order) => getOrderStatusValue(order) === status.value);
-    return groups;
-  }, {});
+  const activeOrdersCount = useMemo(
+    () => orders.filter((order) => !["Finalizada", "Facturada", "Entregada"].includes(order.estado)).length,
+    [orders]
+  );
 
   const selectedService = useMemo(
     () => services.find((service) => service.id === detailForm.servicio_id),
@@ -124,40 +115,6 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged }) {
       setError(`No se pudo crear la orden: ${insertError.message}`);
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleStatusChange(codigo, nextStatus) {
-    setMessage("");
-    setError("");
-
-    if (!isSupabaseConfigured) {
-      setOrders((currentOrders) =>
-        currentOrders.map((order) =>
-          order.codigo === codigo
-            ? {
-                ...order,
-                estadoRaw: nextStatus,
-                estado: getStatusLabel(nextStatus)
-              }
-            : order
-        )
-      );
-      setMessage("Estado actualizado en modo demostración.");
-      return;
-    }
-
-    setUpdatingCode(codigo);
-
-    try {
-      await updateOrdenEstado(codigo, nextStatus);
-      setMessage(`Orden ${codigo} actualizada a ${getStatusLabel(nextStatus)}.`);
-      await loadOrderScreenData();
-      await onOrdersChanged?.();
-    } catch (updateError) {
-      setError(`No se pudo actualizar la orden: ${updateError.message}`);
-    } finally {
-      setUpdatingCode("");
     }
   }
 
@@ -255,255 +212,218 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged }) {
     <div className="page-stack">
       <section className="hero-band">
         <div>
-          <span className="section-label">Servicio</span>
-          <h2>Seguimiento de órdenes</h2>
+          <span className="section-label">Órdenes</span>
+          <h2>{isReadOnly ? "Consulta de órdenes de trabajo" : "Registro de órdenes de trabajo"}</h2>
         </div>
         <div className="hero-meta">
           <span>Activas</span>
-          <strong>{loading ? "..." : groupedOrders.Pendiente.length + groupedOrders["En proceso"].length}</strong>
+          <strong>{loading ? "..." : activeOrdersCount}</strong>
         </div>
       </section>
 
       {message && <Notice type="success">{message}</Notice>}
       {error && <Notice type="error">{error}</Notice>}
 
-      <section className="panel form-panel">
-        <h2>Nueva orden de trabajo</h2>
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            Código
-            <input
-              value={form.codigo}
-              readOnly
-              aria-label="Código automático de la orden"
-            />
-          </label>
-          <label>
-            Estado
-            <select value={form.estado} onChange={(event) => updateField("estado", event.target.value)}>
-              {ORDER_STATUSES.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="field-label">Cliente <span className="required">*</span></span>
-            <select
-              value={form.cliente_id}
-              onChange={(event) => updateField("cliente_id", event.target.value)}
-              required
-            >
-              <option value="">Seleccionar cliente</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.nombre} - {client.telefono}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="field-label">Vehículo <span className="required">*</span></span>
-            <select
-              value={form.vehiculo_id}
-              onChange={(event) => updateField("vehiculo_id", event.target.value)}
-              required
-            >
-              <option value="">Seleccionar vehículo</option>
-              {availableVehicles.map((vehicle) => (
-                <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.placa} - {vehicle.marca} {vehicle.modelo}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-wide">
-            <span className="field-label">Descripción del problema <span className="required">*</span></span>
-            <textarea
-              value={form.descripcion_problema}
-              onChange={(event) => updateField("descripcion_problema", event.target.value)}
-              placeholder="Describa el problema reportado por el cliente"
-              required
-            />
-          </label>
-          <label className="field-wide">
-            Observaciones
-            <textarea
-              value={form.observaciones}
-              onChange={(event) => updateField("observaciones", event.target.value)}
-              placeholder="Notas internas de recepción"
-            />
-          </label>
-          <div className="form-actions field-wide">
-            <button className="primary-action" disabled={saving} type="submit">
-              {saving ? "Guardando..." : "Crear orden"}
-            </button>
-          </div>
-        </form>
-      </section>
+      {!isReadOnly && (
+        <>
+          <section className="panel form-panel">
+            <h2>Nueva orden de trabajo</h2>
+            <form className="form-grid" onSubmit={handleSubmit}>
+              <label>
+                Código
+                <input value={form.codigo} readOnly aria-label="Código automático de la orden" />
+              </label>
+              <label>
+                <span className="field-label">Cliente <span className="required">*</span></span>
+                <select
+                  value={form.cliente_id}
+                  onChange={(event) => updateField("cliente_id", event.target.value)}
+                  required
+                >
+                  <option value="">Seleccionar cliente</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.nombre} - {client.telefono}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="field-label">Vehículo <span className="required">*</span></span>
+                <select
+                  value={form.vehiculo_id}
+                  onChange={(event) => updateField("vehiculo_id", event.target.value)}
+                  required
+                >
+                  <option value="">Seleccionar vehículo</option>
+                  {availableVehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.placa} - {vehicle.marca} {vehicle.modelo}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-wide">
+                <span className="field-label">Descripción del problema <span className="required">*</span></span>
+                <textarea
+                  value={form.descripcion_problema}
+                  onChange={(event) => updateField("descripcion_problema", event.target.value)}
+                  placeholder="Describa el problema reportado por el cliente"
+                  required
+                />
+              </label>
+              <label className="field-wide">
+                Observaciones
+                <textarea
+                  value={form.observaciones}
+                  onChange={(event) => updateField("observaciones", event.target.value)}
+                  placeholder="Notas internas de recepción"
+                />
+              </label>
+              <div className="form-actions field-wide">
+                <button className="primary-action" disabled={saving} type="submit">
+                  {saving ? "Guardando..." : "Crear orden"}
+                </button>
+              </div>
+            </form>
+          </section>
 
-      <section className="panel form-panel">
-        <h2>Detalle de orden</h2>
-        <form className="form-grid" onSubmit={handleDetailSubmit}>
-          <label>
-            <span className="field-label">Orden <span className="required">*</span></span>
-            <select
-              value={detailForm.orden_id}
-              onChange={(event) => updateDetailField("orden_id", event.target.value)}
-              required
-            >
-              <option value="">Seleccionar orden</option>
-              {orders.map((order) => (
-                <option key={order.id ?? order.codigo} value={order.id ?? order.codigo}>
-                  {order.codigo} - {order.cliente}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Tipo de detalle
-            <select value={detailForm.tipo} onChange={(event) => updateDetailField("tipo", event.target.value)}>
-              <option value="servicio">Servicio realizado</option>
-              <option value="repuesto">Repuesto utilizado</option>
-            </select>
-          </label>
+          <section className="panel form-panel">
+            <h2>Detalle de orden</h2>
+            <form className="form-grid" onSubmit={handleDetailSubmit}>
+              <label>
+                <span className="field-label">Orden <span className="required">*</span></span>
+                <select
+                  value={detailForm.orden_id}
+                  onChange={(event) => updateDetailField("orden_id", event.target.value)}
+                  required
+                >
+                  <option value="">Seleccionar orden</option>
+                  {orders.map((order) => (
+                    <option key={order.id ?? order.codigo} value={order.id ?? order.codigo}>
+                      {order.codigo} - {order.cliente}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Tipo de detalle
+                <select value={detailForm.tipo} onChange={(event) => updateDetailField("tipo", event.target.value)}>
+                  <option value="servicio">Servicio realizado</option>
+                  <option value="repuesto">Repuesto utilizado</option>
+                </select>
+              </label>
 
-          {detailForm.tipo === "servicio" ? (
-            <label>
-              <span className="field-label">Servicio <span className="required">*</span></span>
-              <select
-                value={detailForm.servicio_id}
-                onChange={(event) => updateDetailField("servicio_id", event.target.value)}
-                required
-              >
-                <option value="">Seleccionar servicio</option>
-                {services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.nombre} - {formatCurrency(service.precio)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <label>
-              <span className="field-label">Repuesto <span className="required">*</span></span>
-              <select
-                value={detailForm.repuesto_id}
-                onChange={(event) => updateDetailField("repuesto_id", event.target.value)}
-                required
-              >
-                <option value="">Seleccionar repuesto</option>
-                {parts.map((part) => (
-                  <option key={part.id} value={part.id}>
-                    {part.codigo} - {part.nombre} ({part.stock} disponibles)
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+              {detailForm.tipo === "servicio" ? (
+                <label>
+                  <span className="field-label">Servicio <span className="required">*</span></span>
+                  <select
+                    value={detailForm.servicio_id}
+                    onChange={(event) => updateDetailField("servicio_id", event.target.value)}
+                    required
+                  >
+                    <option value="">Seleccionar servicio</option>
+                    {services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.nombre} - {formatCurrency(service.precio)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  <span className="field-label">Repuesto <span className="required">*</span></span>
+                  <select
+                    value={detailForm.repuesto_id}
+                    onChange={(event) => updateDetailField("repuesto_id", event.target.value)}
+                    required
+                  >
+                    <option value="">Seleccionar repuesto</option>
+                    {parts.map((part) => (
+                      <option key={part.id} value={part.id}>
+                        {part.codigo} - {part.nombre} ({part.stock} disponibles)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
-          <label>
-            Cantidad
-            <input
-              min="1"
-              onChange={(event) => updateDetailField("cantidad", event.target.value)}
-              type="number"
-              value={detailForm.cantidad}
-            />
-          </label>
-          <label>
-            Precio unitario
-            <input
-              min="0"
-              onChange={(event) => updateDetailField("precio_unitario", event.target.value)}
-              step="0.01"
-              type="number"
-              value={detailForm.precio_unitario}
-            />
-          </label>
-          <label className="field-wide">
-            Descripción
-            <textarea
-              onChange={(event) => updateDetailField("descripcion", event.target.value)}
-              value={detailForm.descripcion}
-            />
-          </label>
-          <div className="detail-total field-wide">
-            <span>Total del detalle</span>
-            <strong>{formatCurrency(Number(detailForm.cantidad || 0) * Number(detailForm.precio_unitario || 0))}</strong>
-          </div>
-          <div className="form-actions field-wide">
-            <button className="primary-action" disabled={savingDetail} type="submit">
-              {savingDetail ? "Agregando..." : "Agregar detalle"}
-            </button>
-          </div>
-        </form>
-      </section>
+              <label>
+                Cantidad
+                <input
+                  min="1"
+                  onChange={(event) => updateDetailField("cantidad", event.target.value)}
+                  type="number"
+                  value={detailForm.cantidad}
+                />
+              </label>
+              <label>
+                Precio unitario
+                <input
+                  min="0"
+                  onChange={(event) => updateDetailField("precio_unitario", event.target.value)}
+                  step="0.01"
+                  type="number"
+                  value={detailForm.precio_unitario}
+                />
+              </label>
+              <label className="field-wide">
+                Descripción
+                <textarea
+                  onChange={(event) => updateDetailField("descripcion", event.target.value)}
+                  value={detailForm.descripcion}
+                />
+              </label>
+              <div className="detail-total field-wide">
+                <span>Total del detalle</span>
+                <strong>{formatCurrency(Number(detailForm.cantidad || 0) * Number(detailForm.precio_unitario || 0))}</strong>
+              </div>
+              <div className="form-actions field-wide">
+                <button className="primary-action" disabled={savingDetail} type="submit">
+                  {savingDetail ? "Agregando..." : "Agregar detalle"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </>
+      )}
 
       <section className="panel">
-        <div className="kanban">
-          {Object.entries(groupedOrders).map(([title, items]) => (
-            <Lane
-              key={title}
-              title={title}
-              items={items}
-              onStatusChange={handleStatusChange}
-              updatingCode={updatingCode}
-            />
-          ))}
+        <div className="panel-heading">
+          <h2>{isReadOnly ? "Consulta general de órdenes" : "Órdenes registradas"}</h2>
+          <span className="count-pill">{loading ? "Cargando..." : `${orders.length} registradas`}</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Cliente</th>
+                <th>Vehículo</th>
+                <th>Estado</th>
+                <th>Total</th>
+                <th>Pagado</th>
+                <th>Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.id ?? order.codigo}>
+                  <td>{order.codigo}</td>
+                  <td>{order.cliente}</td>
+                  <td>{order.vehiculo}</td>
+                  <td><span className={`status ${order.tone}`}>{order.estado}</span></td>
+                  <td>{order.total ?? formatCurrency(0)}</td>
+                  <td>{order.totalPagado ?? formatCurrency(0)}</td>
+                  <td>{order.saldoPendiente ?? formatCurrency(0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
     </div>
   );
-}
-
-function Lane({ title, items, onStatusChange, updatingCode }) {
-  return (
-    <div className="lane">
-      <div className="lane-heading">
-        <h3>{title}</h3>
-        <span>{items.length}</span>
-      </div>
-      {items.length ? (
-        items.map((order) => (
-          <article className="order-card" key={order.codigo}>
-            <strong>{order.codigo}</strong>
-            <span>{order.cliente}</span>
-            <small>{order.vehiculo}</small>
-            <div className="order-card-footer">
-              <select
-                className="status-select"
-                value={getOrderStatusValue(order)}
-                disabled={updatingCode === order.codigo}
-                onChange={(event) => onStatusChange(order.codigo, event.target.value)}
-              >
-                {ORDER_STATUSES.map((status) => (
-                  <option key={status.value} value={status.value}>
-                    {status.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </article>
-        ))
-      ) : (
-        <p className="empty-lane">Sin órdenes</p>
-      )}
-    </div>
-  );
-}
-
-function getOrderStatusValue(order) {
-  if (order.estadoRaw) {
-    return order.estadoRaw;
-  }
-
-  return ORDER_STATUSES.find((status) => status.label === order.estado)?.value ?? "pendiente";
-}
-
-function getStatusLabel(value) {
-  return ORDER_STATUSES.find((status) => status.value === value)?.label ?? value;
 }
 
 function emptyOrderForm() {

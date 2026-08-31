@@ -602,95 +602,11 @@ tbody tr:last-child td {
   color: var(--muted);
 }
 
-.kanban {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
-  gap: 16px;
-  overflow-x: auto;
-}
-
-.lane {
-  min-height: 240px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff, #f8fafc);
-  box-shadow: var(--shadow-soft);
-}
-
-.lane-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.lane-heading h3 {
-  margin: 0;
-}
-
-.lane-heading span {
-  display: grid;
-  min-width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--surface-muted);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.order-card,
-.empty-lane,
 .inventory-list article {
   padding: 12px 13px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #ffffff;
-}
-
-.order-card {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
-}
-
-.order-card span,
-.order-card small,
-.empty-lane {
-  color: var(--muted);
-}
-
-.order-card small {
-  font-size: 12px;
-}
-
-.order-card-footer {
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
-.status-select {
-  width: 100%;
-  min-height: 36px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--surface-soft);
-  color: #334155;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.status-select:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
-
-.empty-lane {
-  margin: 0;
 }
 
 .split {

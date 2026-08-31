@@ -4,7 +4,8 @@ import { demoVehicles } from "../data/demoData";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { getVehiculos } from "../services/vehiculosService";
 
-export function Vehiculos() {
+export function Vehiculos({ role }) {
+  const subtitle = role === "administrador" ? "Consulta de vehículos e historial" : "Vehículos registrados";
   const [vehicles, setVehicles] = useState(demoVehicles);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +37,7 @@ export function Vehiculos() {
       <section className="hero-band">
         <div>
           <span className="section-label">Vehículos</span>
-          <h2>Registro e historial vehicular</h2>
+          <h2>{subtitle}</h2>
         </div>
         <div className="hero-meta">
           <span>Registrados</span>

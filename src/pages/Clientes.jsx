@@ -50,7 +50,8 @@ const VEHICLE_CATALOG = [
 
 const VEHICLE_YEARS = Array.from({ length: 22 }, (_, index) => String(new Date().getFullYear() + 1 - index));
 
-export function Clientes() {
+export function Clientes({ role }) {
+  const isReadOnly = role === "administrador";
   const [clients, setClients] = useState(demoClients);
   const [vehicles, setVehicles] = useState(demoVehicles);
   const [form, setForm] = useState(emptyClientForm());
@@ -112,7 +113,7 @@ export function Clientes() {
     setError("");
 
     if (!form.nombre.trim() || !form.telefono.trim()) {
-      setError("Nombre y telefono son obligatorios.");
+      setError("Nombre y teléfono son obligatorios.");
       return;
     }
 
@@ -123,7 +124,7 @@ export function Clientes() {
       };
       setClients((current) => [newClient, ...current]);
       setForm(emptyClientForm());
-      setMessage("Cliente agregado en modo demostracion.");
+      setMessage("Cliente agregado en modo demostración.");
       return;
     }
 
@@ -204,8 +205,8 @@ export function Clientes() {
     <div className="page-stack">
       <section className="hero-band">
         <div>
-          <span className="section-label">Recepcion</span>
-          <h2>Clientes y vehiculos</h2>
+          <span className="section-label">Clientes</span>
+          <h2>Consulta de clientes</h2>
         </div>
         <div className="hero-meta">
           <span>Activos</span>
@@ -213,170 +214,172 @@ export function Clientes() {
         </div>
       </section>
 
-      <div className="management-grid">
-      <section className="panel form-panel">
-        <h2>Registro de cliente</h2>
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            Identidad
-            <input
-              value={form.identidad}
-              onChange={(event) => updateField("identidad", event.target.value)}
-              placeholder="0801199900012"
-            />
-          </label>
-          <label>
-            <span className="field-label">Nombre <span className="required">*</span></span>
-            <input
-              value={form.nombre}
-              onChange={(event) => updateField("nombre", event.target.value)}
-              placeholder="Nombre completo"
-              required
-            />
-          </label>
-          <label>
-            <span className="field-label">Telefono <span className="required">*</span></span>
-            <input
-              value={form.telefono}
-              onChange={(event) => updateField("telefono", event.target.value)}
-              placeholder="9999-9999"
-              required
-            />
-          </label>
-          <label>
-            Correo
-            <input
-              value={form.correo}
-              onChange={(event) => updateField("correo", event.target.value)}
-              placeholder="cliente@correo.com"
-              type="email"
-            />
-          </label>
-          <label className="field-wide">
-            Direccion
-            <input
-              value={form.direccion}
-              onChange={(event) => updateField("direccion", event.target.value)}
-              placeholder="Direccion del cliente"
-            />
-          </label>
-          <div className="form-actions field-wide">
-            {message && <Notice type="success">{message}</Notice>}
-            {error && <Notice type="error">{error}</Notice>}
-            <button className="primary-action" disabled={saving} type="submit">
-              {saving ? "Guardando..." : "Guardar cliente"}
-            </button>
-          </div>
-        </form>
-      </section>
+      {!isReadOnly && (
+        <div className="management-grid">
+        <section className="panel form-panel">
+          <h2>Registro de cliente</h2>
+          <form className="form-grid" onSubmit={handleSubmit}>
+            <label>
+              Identidad
+              <input
+                value={form.identidad}
+                onChange={(event) => updateField("identidad", event.target.value)}
+                placeholder="0801199900012"
+              />
+            </label>
+            <label>
+              <span className="field-label">Nombre <span className="required">*</span></span>
+              <input
+                value={form.nombre}
+                onChange={(event) => updateField("nombre", event.target.value)}
+                placeholder="Nombre completo"
+                required
+              />
+            </label>
+            <label>
+              <span className="field-label">Teléfono <span className="required">*</span></span>
+              <input
+                value={form.telefono}
+                onChange={(event) => updateField("telefono", event.target.value)}
+                placeholder="9999-9999"
+                required
+              />
+            </label>
+            <label>
+              Correo
+              <input
+                value={form.correo}
+                onChange={(event) => updateField("correo", event.target.value)}
+                placeholder="cliente@correo.com"
+                type="email"
+              />
+            </label>
+            <label className="field-wide">
+              Dirección
+              <input
+                value={form.direccion}
+                onChange={(event) => updateField("direccion", event.target.value)}
+                placeholder="Dirección del cliente"
+              />
+            </label>
+            <div className="form-actions field-wide">
+              {message && <Notice type="success">{message}</Notice>}
+              {error && <Notice type="error">{error}</Notice>}
+              <button className="primary-action" disabled={saving} type="submit">
+                {saving ? "Guardando..." : "Guardar cliente"}
+              </button>
+            </div>
+          </form>
+        </section>
 
-      <section className="panel form-panel">
-          <h2>Registro de vehículo</h2>
-        <form className="form-grid" onSubmit={handleVehicleSubmit}>
-          <label className="field-wide">
-            <span className="field-label">Cliente <span className="required">*</span></span>
-            <select
-              value={vehicleForm.cliente_id}
-              onChange={(event) => updateVehicleField("cliente_id", event.target.value)}
-              required
-            >
-              <option value="">Seleccionar cliente</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.nombre} - {client.telefono}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="field-label">Placa <span className="required">*</span></span>
-            <input
-              value={vehicleForm.placa}
-              onChange={(event) => updateVehicleField("placa", event.target.value)}
-              placeholder="HAA-1234"
-              required
-            />
-          </label>
-          <label>
-            <span className="field-label">Marca <span className="required">*</span></span>
-            <select
-              value={vehicleForm.marca}
-              onChange={(event) => updateVehicleField("marca", event.target.value)}
-              required
-            >
-              <option value="">Seleccionar marca</option>
-              {VEHICLE_CATALOG.map((brand) => (
-                <option key={brand.marca} value={brand.marca}>
-                  {brand.marca}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="field-label">Modelo <span className="required">*</span></span>
-            <select
-              value={vehicleForm.modelo}
-              onChange={(event) => updateVehicleField("modelo", event.target.value)}
-              disabled={!selectedVehicleBrand}
-              required
-            >
-              <option value="">Seleccionar modelo</option>
-              {selectedVehicleBrand?.modelos.map((model) => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Año
-            <select
-              value={vehicleForm.anio}
-              onChange={(event) => updateVehicleField("anio", event.target.value)}
-              disabled={!vehicleForm.modelo}
-            >
-              <option value="">Seleccionar año</option>
-              {VEHICLE_YEARS.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Color
-            <select
-              value={vehicleForm.color}
-              onChange={(event) => updateVehicleField("color", event.target.value)}
-              disabled={!selectedVehicleBrand}
-            >
-              <option value="">Seleccionar color</option>
-              {selectedVehicleBrand?.colores.map((color) => (
-                <option key={color} value={color}>
-                  {color}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Kilometraje
-            <input
-              value={vehicleForm.kilometraje}
-              onChange={(event) => updateVehicleField("kilometraje", event.target.value)}
-              placeholder="82000"
-              type="number"
-            />
-          </label>
-          <div className="form-actions field-wide">
-            {vehicleMessage && <Notice type="success">{vehicleMessage}</Notice>}
-            {vehicleError && <Notice type="error">{vehicleError}</Notice>}
-            <button className="primary-action" disabled={vehicleSaving} type="submit">
-              {vehicleSaving ? "Guardando..." : "Guardar vehículo"}
-            </button>
-          </div>
-        </form>
-      </section>
-      </div>
+        <section className="panel form-panel">
+            <h2>Registro de vehículo</h2>
+          <form className="form-grid" onSubmit={handleVehicleSubmit}>
+            <label className="field-wide">
+              <span className="field-label">Cliente <span className="required">*</span></span>
+              <select
+                value={vehicleForm.cliente_id}
+                onChange={(event) => updateVehicleField("cliente_id", event.target.value)}
+                required
+              >
+                <option value="">Seleccionar cliente</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.nombre} - {client.telefono}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="field-label">Placa <span className="required">*</span></span>
+              <input
+                value={vehicleForm.placa}
+                onChange={(event) => updateVehicleField("placa", event.target.value)}
+                placeholder="HAA-1234"
+                required
+              />
+            </label>
+            <label>
+              <span className="field-label">Marca <span className="required">*</span></span>
+              <select
+                value={vehicleForm.marca}
+                onChange={(event) => updateVehicleField("marca", event.target.value)}
+                required
+              >
+                <option value="">Seleccionar marca</option>
+                {VEHICLE_CATALOG.map((brand) => (
+                  <option key={brand.marca} value={brand.marca}>
+                    {brand.marca}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="field-label">Modelo <span className="required">*</span></span>
+              <select
+                value={vehicleForm.modelo}
+                onChange={(event) => updateVehicleField("modelo", event.target.value)}
+                disabled={!selectedVehicleBrand}
+                required
+              >
+                <option value="">Seleccionar modelo</option>
+                {selectedVehicleBrand?.modelos.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Año
+              <select
+                value={vehicleForm.anio}
+                onChange={(event) => updateVehicleField("anio", event.target.value)}
+                disabled={!vehicleForm.modelo}
+              >
+                <option value="">Seleccionar año</option>
+                {VEHICLE_YEARS.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Color
+              <select
+                value={vehicleForm.color}
+                onChange={(event) => updateVehicleField("color", event.target.value)}
+                disabled={!selectedVehicleBrand}
+              >
+                <option value="">Seleccionar color</option>
+                {selectedVehicleBrand?.colores.map((color) => (
+                  <option key={color} value={color}>
+                    {color}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Kilometraje
+              <input
+                value={vehicleForm.kilometraje}
+                onChange={(event) => updateVehicleField("kilometraje", event.target.value)}
+                placeholder="82000"
+                type="number"
+              />
+            </label>
+            <div className="form-actions field-wide">
+              {vehicleMessage && <Notice type="success">{vehicleMessage}</Notice>}
+              {vehicleError && <Notice type="error">{vehicleError}</Notice>}
+              <button className="primary-action" disabled={vehicleSaving} type="submit">
+                {vehicleSaving ? "Guardando..." : "Guardar vehículo"}
+              </button>
+            </div>
+          </form>
+        </section>
+        </div>
+      )}
 
       <section className="panel">
         <div className="panel-heading">
@@ -388,9 +391,9 @@ export function Clientes() {
             <thead>
               <tr>
                 <th>Nombre</th>
-                <th>Telefono</th>
+                <th>Teléfono</th>
                 <th>Correo</th>
-                <th>Direccion</th>
+                <th>Dirección</th>
               </tr>
             </thead>
             <tbody>
@@ -399,7 +402,7 @@ export function Clientes() {
                   <td>{client.nombre}</td>
                   <td>{client.telefono}</td>
                   <td>{client.correo || "Sin correo"}</td>
-                  <td>{client.direccion || "Sin direccion"}</td>
+                  <td>{client.direccion || "Sin dirección"}</td>
                 </tr>
               ))}
             </tbody>
