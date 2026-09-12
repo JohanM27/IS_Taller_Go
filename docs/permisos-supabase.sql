@@ -24,6 +24,8 @@ grant select, insert, update, delete on detalle_repuestos to authenticated;
 grant select, insert on pagos to authenticated;
 grant update, delete on pagos to authenticated;
 
+grant select, insert, update, delete on caja_turnos to authenticated;
+
 grant select on resumen_ordenes to authenticated;
 grant select on repuestos_stock_bajo to authenticated;
 

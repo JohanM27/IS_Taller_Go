@@ -8,23 +8,14 @@ const roleViews = {
     { id: "clientes", label: "Clientes", title: "Clientes", marker: "C" },
     { id: "vehiculos", label: "Vehículos", title: "Vehículos", marker: "V" },
     { id: "inventario", label: "Inventario", title: "Inventario", marker: "I" },
-    { id: "ventas", label: "Ventas", title: "Ventas / Facturación", marker: "$" },
-    { id: "cuentas", label: "Cuentas", title: "Cuentas por cobrar", marker: "Q" },
-    { id: "reportes", label: "Reportes", title: "Reportes", marker: "R" },
-    { id: "usuarios", label: "Usuarios", title: "Usuarios", marker: "U" },
-    { id: "configuracion", label: "Ajustes", title: "Configuración", marker: "A" }
+    { id: "servicios", label: "Servicios", title: "Servicios", marker: "S" }
   ],
   recepcion_caja: [
-    { id: "inicio", label: "Inicio", title: "Inicio", marker: "I" },
+    { id: "inicio", label: "Inicio", title: "Dashboard", marker: "I" },
+    { id: "ordenes", label: "Recepción / Órdenes", title: "Órdenes de trabajo", marker: "O" },
+    { id: "caja", label: "Caja / Cobros", title: "Caja y Cobros", marker: "$" },
     { id: "clientes", label: "Clientes", title: "Clientes", marker: "C" },
-    { id: "vehiculos", label: "Vehículos", title: "Vehículos", marker: "V" },
-    { id: "recepcion", label: "Recepción", title: "Recepción", marker: "E" },
-    { id: "ordenes", label: "Órdenes", title: "Órdenes de trabajo", marker: "O" },
-    { id: "cotizaciones", label: "Cotizaciones", title: "Cotizaciones", marker: "T" },
-    { id: "caja", label: "Caja", title: "Caja / Cobros", marker: "$" },
-    { id: "facturas", label: "Facturas", title: "Facturas", marker: "F" },
-    { id: "cuentas", label: "Cuentas", title: "Cuentas pendientes", marker: "Q" },
-    { id: "historial", label: "Historial", title: "Historial", marker: "H" }
+    { id: "vehiculos", label: "Vehículos", title: "Vehículos", marker: "V" }
   ]
 };
 

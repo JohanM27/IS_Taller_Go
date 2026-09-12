@@ -32,6 +32,8 @@ for each row execute function set_actualizado_en();
 
 alter table caja_turnos enable row level security;
 
+grant select, insert, update, delete on caja_turnos to authenticated;
+
 drop policy if exists "operativos leen turnos de caja" on caja_turnos;
 create policy "operativos leen turnos de caja"
 on caja_turnos for select
