@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Notice } from "../components/Notice";
-import { demoClients, demoVehicles } from "../data/demoData";
 import { createCliente, getClientes } from "../services/clientesService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { createVehiculo, getVehiculos } from "../services/vehiculosService";
@@ -52,8 +51,8 @@ const VEHICLE_YEARS = Array.from({ length: 22 }, (_, index) => String(new Date()
 
 export function Clientes({ role }) {
   const isReadOnly = role === "administrador";
-  const [clients, setClients] = useState(demoClients);
-  const [vehicles, setVehicles] = useState(demoVehicles);
+  const [clients, setClients] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
   const [form, setForm] = useState(emptyClientForm());
   const [vehicleForm, setVehicleForm] = useState(emptyVehicleForm());
   const [loading, setLoading] = useState(false);
@@ -72,6 +71,7 @@ export function Clientes({ role }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
+      setError("Configura las variables de Supabase para cargar clientes reales.");
       return;
     }
 
@@ -118,13 +118,7 @@ export function Clientes({ role }) {
     }
 
     if (!isSupabaseConfigured) {
-      const newClient = {
-        id: crypto.randomUUID(),
-        ...cleanClientForm(form)
-      };
-      setClients((current) => [newClient, ...current]);
-      setForm(emptyClientForm());
-      setMessage("Cliente agregado en modo demostración.");
+      setError("No se puede guardar el cliente porque Supabase no está configurado.");
       return;
     }
 
@@ -157,15 +151,7 @@ export function Clientes({ role }) {
     }
 
     if (!isSupabaseConfigured) {
-      const client = clients.find((item) => item.id === vehicleForm.cliente_id);
-      const newVehicle = {
-        id: crypto.randomUUID(),
-        ...cleanVehicleForm(vehicleForm),
-        clientes: { nombre: client?.nombre ?? "Cliente demo" }
-      };
-      setVehicles((current) => [newVehicle, ...current]);
-      setVehicleForm(emptyVehicleForm());
-      setVehicleMessage("Vehículo agregado en modo demostración.");
+      setVehicleError("No se puede guardar el vehículo porque Supabase no está configurado.");
       return;
     }
 

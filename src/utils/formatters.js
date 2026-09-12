@@ -1,27 +1,3 @@
-export function formatEstado(estado) {
-  const labels = {
-    pendiente: "Pendiente",
-    en_proceso: "En proceso",
-    finalizada: "Finalizada",
-    facturada: "Facturada",
-    entregada: "Entregada"
-  };
-
-  return labels[estado] ?? estado;
-}
-
-export function statusTone(estado) {
-  if (["finalizada", "facturada", "entregada"].includes(estado)) {
-    return "done";
-  }
-
-  if (estado === "pendiente") {
-    return "warn";
-  }
-
-  return "";
-}
-
 export function formatCurrency(value) {
   return new Intl.NumberFormat("es-HN", {
     style: "currency",
@@ -32,7 +8,7 @@ export function formatCurrency(value) {
 
 export function sumOrderTotals(loadedOrders) {
   const total = loadedOrders.reduce((sum, order) => {
-    const numericValue = Number(String(order.total).replace(/[^\d.-]/g, ""));
+    const numericValue = Number(order.totalRaw ?? String(order.total).replace(/[^\d.-]/g, ""));
     return sum + (Number.isNaN(numericValue) ? 0 : numericValue);
   }, 0);
 

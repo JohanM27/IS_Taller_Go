@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient";
-import { formatCurrency, formatEstado, statusTone } from "../utils/formatters";
+import { formatCurrency } from "../utils/formatters";
 
 export async function getDashboardData() {
   const [ordenesResponse, clientesResponse, stockResponse] = await Promise.all([
@@ -25,14 +25,12 @@ export async function getDashboardData() {
       cliente: order.cliente,
       vehiculo: order.vehiculo,
       estadoRaw: order.estado,
-      estado: formatEstado(order.estado),
       total: formatCurrency(order.total_orden),
       totalRaw: Number(order.total_orden ?? 0),
       totalPagado: formatCurrency(order.total_pagado),
       totalPagadoRaw: Number(order.total_pagado ?? 0),
       saldoPendiente: formatCurrency(order.saldo_pendiente),
-      saldoPendienteRaw: Number(order.saldo_pendiente ?? 0),
-      tone: statusTone(order.estado)
+      saldoPendienteRaw: Number(order.saldo_pendiente ?? 0)
     })),
     clientesCount: clientesResponse.count ?? 0,
     stockBajoCount: stockResponse.count ?? 0

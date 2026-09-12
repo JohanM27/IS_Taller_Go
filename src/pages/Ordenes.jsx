@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Notice } from "../components/Notice";
-import { demoOrders } from "../data/demoData";
 import { getClientes } from "../services/clientesService";
 import {
   addRepuestoToOrden,
@@ -35,7 +34,7 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      setOrders(demoOrders);
+      setError("Configura las variables de Supabase para cargar órdenes reales.");
       return;
     }
 
@@ -72,11 +71,6 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
     [vehicles, form.cliente_id]
   );
 
-  const activeOrdersCount = useMemo(
-    () => orders.filter((order) => !["Finalizada", "Facturada", "Entregada"].includes(order.estado)).length,
-    [orders]
-  );
-
   const selectedService = useMemo(
     () => services.find((service) => service.id === detailForm.servicio_id),
     [services, detailForm.servicio_id]
@@ -98,8 +92,7 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
     }
 
     if (!isSupabaseConfigured) {
-      setMessage("Orden creada en modo demostración.");
-      setForm(emptyOrderForm());
+      setError("No se puede crear la orden porque Supabase no está configurado.");
       return;
     }
 
@@ -144,8 +137,7 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
     }
 
     if (!isSupabaseConfigured) {
-      setMessage("Detalle agregado en modo demostración.");
-      setDetailForm(emptyDetailForm());
+      setError("No se puede agregar el detalle porque Supabase no está configurado.");
       return;
     }
 
@@ -216,8 +208,8 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
           <h2>{isReadOnly ? "Consulta de órdenes de trabajo" : "Registro de órdenes de trabajo"}</h2>
         </div>
         <div className="hero-meta">
-          <span>Activas</span>
-          <strong>{loading ? "..." : activeOrdersCount}</strong>
+          <span>Registradas</span>
+          <strong>{loading ? "..." : orders.length}</strong>
         </div>
       </section>
 
@@ -400,7 +392,6 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
                 <th>Código</th>
                 <th>Cliente</th>
                 <th>Vehículo</th>
-                <th>Estado</th>
                 <th>Total</th>
                 <th>Pagado</th>
                 <th>Saldo</th>
@@ -412,7 +403,6 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
                   <td>{order.codigo}</td>
                   <td>{order.cliente}</td>
                   <td>{order.vehiculo}</td>
-                  <td><span className={`status ${order.tone}`}>{order.estado}</span></td>
                   <td>{order.total ?? formatCurrency(0)}</td>
                   <td>{order.totalPagado ?? formatCurrency(0)}</td>
                   <td>{order.saldoPendiente ?? formatCurrency(0)}</td>

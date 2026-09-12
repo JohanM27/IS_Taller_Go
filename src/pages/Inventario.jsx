@@ -4,14 +4,8 @@ import { createRepuesto, getRepuestos } from "../services/repuestosService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { formatCurrency } from "../utils/formatters";
 
-const demoItems = [
-  { id: "rep-demo-1", codigo: "REP-001", nombre: "Filtro de aceite", costo: 120, precio_venta: 220, stock: 3, stock_minimo: 5 },
-  { id: "rep-demo-2", codigo: "REP-002", nombre: "Pastillas de freno", costo: 650, precio_venta: 980, stock: 2, stock_minimo: 4 },
-  { id: "rep-demo-3", codigo: "REP-003", nombre: "Bujías", costo: 85, precio_venta: 150, stock: 6, stock_minimo: 8 }
-];
-
 export function Inventario({ onInventoryChanged }) {
-  const [items, setItems] = useState(demoItems);
+  const [items, setItems] = useState([]);
   const [form, setForm] = useState(emptyRepuestoForm());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -20,6 +14,7 @@ export function Inventario({ onInventoryChanged }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
+      setError("Configura las variables de Supabase para cargar inventario real.");
       return;
     }
 
@@ -56,13 +51,7 @@ export function Inventario({ onInventoryChanged }) {
     }
 
     if (!isSupabaseConfigured) {
-      const newItem = {
-        id: crypto.randomUUID(),
-        ...cleanRepuestoForm(form)
-      };
-      setItems((current) => [newItem, ...current]);
-      setForm(emptyRepuestoForm());
-      setMessage("Repuesto agregado en modo demostración.");
+      setError("No se puede guardar el repuesto porque Supabase no está configurado.");
       return;
     }
 

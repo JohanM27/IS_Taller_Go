@@ -33,7 +33,7 @@ export function getViewTitle(activeView, role = "administrador") {
 }
 
 export function getAvailableViews(role) {
-  return roleViews[role] ?? roleViews.administrador;
+  return roleViews[role] ?? roleViews.recepcion_caja;
 }
 
 export function Layout({

@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import { Notice } from "../components/Notice";
-import { demoVehicles } from "../data/demoData";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { getVehiculos } from "../services/vehiculosService";
 
 export function Vehiculos({ role }) {
   const subtitle = role === "administrador" ? "Consulta de vehículos e historial" : "Vehículos registrados";
-  const [vehicles, setVehicles] = useState(demoVehicles);
+  const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
+      setError("Configura las variables de Supabase para cargar vehículos reales.");
       return;
     }
 

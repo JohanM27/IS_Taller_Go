@@ -4,29 +4,8 @@ import { createServicio, getServicios } from "../services/serviciosService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { formatCurrency } from "../utils/formatters";
 
-const demoServices = [
-  {
-    id: "svc-demo-1",
-    nombre: "Cambio de aceite",
-    descripcion: "Cambio de aceite de motor y revisión general.",
-    precio: 850
-  },
-  {
-    id: "svc-demo-2",
-    nombre: "Revisión de frenos",
-    descripcion: "Revisión y mantenimiento del sistema de frenos.",
-    precio: 1200
-  },
-  {
-    id: "svc-demo-3",
-    nombre: "Diagnóstico eléctrico",
-    descripcion: "Revisión con scanner y pruebas eléctricas.",
-    precio: 1500
-  }
-];
-
 export function Servicios() {
-  const [services, setServices] = useState(demoServices);
+  const [services, setServices] = useState([]);
   const [form, setForm] = useState(emptyServiceForm());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,6 +14,7 @@ export function Servicios() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
+      setError("Configura las variables de Supabase para cargar servicios reales.");
       return;
     }
 
@@ -75,13 +55,7 @@ export function Servicios() {
     }
 
     if (!isSupabaseConfigured) {
-      const newService = {
-        id: crypto.randomUUID(),
-        ...cleanServiceForm(form)
-      };
-      setServices((current) => [newService, ...current]);
-      setForm(emptyServiceForm());
-      setMessage("Servicio agregado en modo demostración.");
+      setError("No se puede guardar el servicio porque Supabase no está configurado.");
       return;
     }
 

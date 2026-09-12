@@ -1,34 +1,34 @@
 # TallerGo
 
-TallerGo es una plataforma web responsive para digitalizar la operacion diaria de un taller mecanico. El sistema reemplaza registros en papel por una solucion centralizada para clientes, vehiculos, ordenes de trabajo, inventario, pagos y reportes.
+TallerGo es una plataforma web responsive para digitalizar la operación diaria de un taller mecánico. El sistema reemplaza registros en papel por una solución centralizada para clientes, vehículos, órdenes de trabajo, inventario, pagos y reportes.
 
 ## Objetivo
 
-Desarrollar una primera version funcional que permita al personal administrativo registrar clientes y vehiculos, crear ordenes de trabajo, dar seguimiento al estado del servicio, controlar repuestos y consultar informacion basica para la toma de decisiones.
+Desarrollar una primera versión funcional que permita registrar clientes y vehículos, crear órdenes de trabajo, controlar repuestos, cobrar trabajos y consultar información básica para la toma de decisiones.
 
 ## Alcance de la primera version
 
 - Plataforma web responsive para computadora, tablet y celular.
-- Roles separados para administrador y recepcion.
-- Gestion de clientes, vehiculos, ordenes de trabajo, inventario, pagos y reportes.
+- Roles separados para administrador y recepción/caja.
+- Gestión de clientes, vehículos, órdenes de trabajo, inventario, pagos y reportes.
 - Persistencia en PostgreSQL mediante Supabase.
-- Autenticacion con Supabase Auth.
+- Autenticación con Supabase Auth.
 - Reglas de acceso por rol mediante Row Level Security.
 
 ## Modulos principales
 
-| Modulo | Descripcion |
+| Módulo | Descripción |
 | --- | --- |
-| Clientes y vehiculos | Registro de clientes y del historial de vehiculos asociados. |
-| Ordenes de trabajo | Creacion, seguimiento y cambio de estado de cada servicio. |
+| Clientes y vehículos | Registro de clientes y del historial de vehículos asociados. |
+| Órdenes de trabajo | Creación y consulta de trabajos, servicios y repuestos utilizados. |
 | Inventario y repuestos | Control de existencias, precios y alertas de stock bajo. |
-| Facturacion y pagos | Registro de pagos y calculo del total de cada orden. |
-| Reportes | Indicadores de ingresos, ordenes por estado e inventario. |
-| Autenticacion y roles | Acceso diferenciado para administrador y recepcion. |
+| Facturación y pagos | Registro de pagos, apertura/cierre de caja y cálculo del total de cada orden. |
+| Reportes | Indicadores de ingresos, órdenes e inventario. |
+| Autenticación y roles | Acceso diferenciado para administrador y recepción/caja. |
 
 ## Stack propuesto
 
-- Frontend: React, TailwindCSS, JavaScript o TypeScript.
+- Frontend: React/Vite y CSS modular del proyecto.
 - Backend: Supabase Auth, PostgREST y Row Level Security.
 - Base de datos: PostgreSQL alojado en Supabase.
 - Control de versiones: Git y GitHub.
@@ -39,7 +39,8 @@ Desarrollar una primera version funcional que permita al personal administrativo
 .
 ├── docs/
 │   ├── arquitectura.md
-│   ├── datos-prueba.sql
+│   ├── limpiar-base-datos.sql
+│   ├── modelo-caja-turnos.sql
 │   ├── modelo-datos.sql
 │   ├── permisos-supabase.sql
 │   ├── requerimientos.md
@@ -55,15 +56,15 @@ Desarrollar una primera version funcional que permita al personal administrativo
 
 ## Avance actual
 
-- Definicion profesional del alcance del sistema.
+- Definición profesional del alcance del sistema.
 - Requerimientos funcionales y no funcionales iniciales.
 - Arquitectura de referencia en tres capas.
 - Modelo de datos inicial para PostgreSQL/Supabase.
-- Datos de prueba para validar clientes, vehiculos, ordenes, repuestos y pagos.
-- Guia paso a paso para crear la base de datos en Supabase.
-- Prototipo web navegable en React/Vite para presentar el concepto.
+- Script para limpiar datos operativos sin eliminar usuarios ni perfiles.
+- Guía paso a paso para crear la base de datos en Supabase.
+- Aplicación web navegable en React/Vite conectada a Supabase.
 
-## Como ejecutar el proyecto
+## Cómo ejecutar el proyecto
 
 Instala las dependencias:
 
@@ -83,7 +84,7 @@ Abre la URL que muestra la terminal. Por defecto:
 http://127.0.0.1:5173
 ```
 
-## Como conectar Supabase
+## Cómo conectar Supabase
 
 Copia el archivo de ejemplo:
 
@@ -98,6 +99,6 @@ VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu_llave_publica_anon
 ```
 
-Reinicia el servidor con `npm run dev`. Como la base usa RLS, primero veras una pantalla de login. Ingresa con el usuario que creaste en Supabase y que registraste en la tabla `perfiles`.
+Reinicia el servidor con `npm run dev`. Como la base usa RLS, primero verás una pantalla de login. Ingresa con el usuario que creaste en Supabase y que registraste en la tabla `perfiles`.
 
-El dashboard cargara datos reales desde `resumen_ordenes`, `clientes` y `repuestos_stock_bajo`.
+El dashboard cargará datos reales desde `resumen_ordenes`, `clientes` y `repuestos_stock_bajo`.

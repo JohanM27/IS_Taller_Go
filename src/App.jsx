@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { getAvailableViews, Layout } from "./components/Layout";
-import { demoOrders } from "./data/demoData";
 import { Caja } from "./pages/Caja";
 import { Dashboard } from "./pages/Dashboard";
 import { Clientes } from "./pages/Clientes";
@@ -14,16 +13,16 @@ import { getPerfilActual } from "./services/perfilesService";
 import { isSupabaseConfigured, supabase } from "./services/supabaseClient";
 
 export function App() {
-  const [activeView, setActiveView] = useState("dashboard");
-  const [role, setRole] = useState("administrador");
+  const [activeView, setActiveView] = useState("inicio");
+  const [role, setRole] = useState("recepcion_caja");
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [session, setSession] = useState(null);
   const [dashboardData, setDashboardData] = useState({
-    orders: demoOrders,
-    clientesCount: 124,
-    stockBajoCount: 7,
+    orders: [],
+    clientesCount: 0,
+    stockBajoCount: 0,
     loading: false,
     error: ""
   });
@@ -45,8 +44,8 @@ export function App() {
       if (!currentSession) {
         setProfile(null);
         setProfileError("");
-        setRole("administrador");
-        setActiveView("dashboard");
+        setRole("recepcion_caja");
+        setActiveView("inicio");
       }
     });
 
@@ -162,16 +161,16 @@ function mapDatabaseRoleToViewRole(databaseRole) {
 }
 
 function AdminVentas({ data }) {
-  const facturadas = data.orders.filter((order) => ["Facturada", "Entregada"].includes(order.estado));
+  const facturadas = data.orders.filter((order) => order.estadoRaw === "facturada");
 
   return (
     <ModulePage
       eyebrow="Ventas"
       metrics={[
-        { label: "Facturadas", value: data.loading ? "..." : facturadas.length, detail: "Órdenes cerradas" },
+        { label: "Facturas", value: data.loading ? "..." : facturadas.length, detail: "Cobros cerrados" },
         { label: "Ingresos", value: data.loading ? "..." : "Según caja", detail: "Pagos registrados" },
         { label: "Filtros", value: "Fecha", detail: "Cliente y vehículo" },
-        { label: "Estado", value: "Activo", detail: "Control administrativo" }
+        { label: "Control", value: "Activo", detail: "Consulta administrativa" }
       ]}
       rows={facturadas.map((order) => ({
         detail: `${order.cliente} - ${order.vehiculo}`,
@@ -236,7 +235,7 @@ function Usuarios() {
       metrics={[
         { label: "Roles", value: "2", detail: "Administrador y Recepción/Caja" },
         { label: "Acceso", value: "RLS", detail: "Controlado por Supabase" },
-        { label: "Estado", value: "Activo", detail: "Usuarios internos" },
+        { label: "Accesos", value: "Activo", detail: "Usuarios internos" },
         { label: "Auditoría", value: "Base", detail: "Perfiles por usuario" }
       ]}
       rows={[
@@ -256,7 +255,7 @@ function Configuracion() {
         { label: "Taller", value: "TallerGo", detail: "Información general" },
         { label: "Facturación", value: "Lista", detail: "Datos fiscales" },
         { label: "Impuestos", value: "Config.", detail: "Parámetros editables" },
-        { label: "Marca", value: "Activa", detail: "Logo y contacto" }
+        { label: "Marca", value: "Lista", detail: "Logo y contacto" }
       ]}
       rows={[
         { title: "Información del taller", detail: "Nombre, teléfono, dirección y correo.", status: "Base" },
@@ -276,12 +275,11 @@ function Recepcion() {
         { label: "Entrada", value: "Orden", detail: "Vehículo recibido" },
         { label: "Motivo", value: "Activo", detail: "Problema reportado" },
         { label: "Kilometraje", value: "Control", detail: "Dato de recepción" },
-        { label: "Estado", value: "Pendiente", detail: "Flujo inicial" }
+        { label: "Revisión visual", value: "Inventario", detail: "Rayones y accesorios" }
       ]}
       rows={[
-        { title: "Registrar entrada", detail: "Cliente, vehículo, kilometraje y observaciones.", status: "Órdenes" },
-        { title: "Crear orden", detail: "La recepción genera la orden de trabajo.", status: "Activo" },
-        { title: "Seguimiento", detail: "Cambio de estado hasta terminar el trabajo.", status: "Activo" }
+        { title: "Registrar entrada", detail: "Cliente, vehículo, kilometraje y revisión visual.", status: "Órdenes" },
+        { title: "Crear orden", detail: "Al aprobar la cotización, se genera la orden de trabajo.", status: "Activo" }
       ]}
       title="Entrada de vehículos"
     />
@@ -296,7 +294,7 @@ function Cotizaciones() {
         { label: "Servicios", value: "Catálogo", detail: "Mano de obra" },
         { label: "Repuestos", value: "Inventario", detail: "Precios disponibles" },
         { label: "Total", value: "Calculado", detail: "Servicios y repuestos" },
-        { label: "Estado", value: "Borrador", detail: "Previo a orden" }
+        { label: "Preparación", value: "Borrador", detail: "Previo a orden" }
       ]}
       rows={[
         { title: "Cotización por cliente", detail: "Servicios, repuestos y observaciones.", status: "Base" },
@@ -308,16 +306,16 @@ function Cotizaciones() {
 }
 
 function Facturas({ data }) {
-  const closedOrders = data.orders.filter((order) => ["Facturada", "Entregada"].includes(order.estado));
+  const closedOrders = data.orders.filter((order) => order.estadoRaw === "facturada");
 
   return (
     <ModulePage
       eyebrow="Facturas"
       metrics={[
-        { label: "Emitidas", value: data.loading ? "..." : closedOrders.length, detail: "Órdenes facturadas" },
+        { label: "Emitidas", value: data.loading ? "..." : closedOrders.length, detail: "Comprobantes generados" },
         { label: "Impresión", value: "Lista", detail: "Formato de factura" },
         { label: "Cobro", value: "Caja", detail: "Método de pago" },
-        { label: "Consulta", value: "Activa", detail: "Cliente o vehículo" }
+        { label: "Consulta", value: "Lista", detail: "Cliente o vehículo" }
       ]}
       rows={closedOrders.map((order) => ({
         detail: `${order.cliente} - ${order.vehiculo}`,

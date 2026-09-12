@@ -1,18 +1,10 @@
-import { useMemo } from "react";
 import { Metric } from "../components/Metric";
 import { Notice } from "../components/Notice";
-import { isSupabaseConfigured } from "../services/supabaseClient";
 import { sumOrderTotals } from "../utils/formatters";
 
 export function Dashboard({ data }) {
-  const ordenesActivas = useMemo(
-    () => data.orders.filter((order) => !["Finalizada", "Facturada", "Entregada"].includes(order.estado)).length,
-    [data.orders]
-  );
-
   return (
     <section className="page-stack">
-      {!isSupabaseConfigured && <Notice>Datos de ejemplo activos. Configura `.env` para conectar Supabase.</Notice>}
       {data.error && <Notice type="error">{data.error}</Notice>}
 
       <section className="hero-band">
@@ -22,12 +14,12 @@ export function Dashboard({ data }) {
         </div>
         <div className="hero-meta">
           <span>Recepción</span>
-          <strong>{data.loading ? "..." : `${ordenesActivas} órdenes activas`}</strong>
+          <strong>{data.loading ? "..." : `${data.orders.length} órdenes`}</strong>
         </div>
       </section>
 
       <div className="metrics">
-        <Metric label="Órdenes activas" value={data.loading ? "..." : ordenesActivas} detail="Pendientes o en proceso" />
+        <Metric label="Órdenes registradas" value={data.loading ? "..." : data.orders.length} detail="Trabajos creados" />
         <Metric label="Clientes registrados" value={data.loading ? "..." : data.clientesCount} detail="Base de clientes" />
         <Metric label="Ingresos estimados" value={data.loading ? "..." : sumOrderTotals(data.orders)} detail="Órdenes cargadas" />
         <Metric label="Stock bajo" value={data.loading ? "..." : data.stockBajoCount} detail="Repuestos por revisar" alert />
@@ -45,7 +37,6 @@ export function Dashboard({ data }) {
                   <th>Código</th>
                   <th>Cliente</th>
                   <th>Vehículo</th>
-                  <th>Estado</th>
                   <th>Total</th>
                 </tr>
               </thead>
@@ -55,9 +46,6 @@ export function Dashboard({ data }) {
                     <td>{order.codigo}</td>
                     <td>{order.cliente}</td>
                     <td>{order.vehiculo}</td>
-                    <td>
-                      <span className={`status ${order.tone}`}>{order.estado}</span>
-                    </td>
                     <td>{order.total}</td>
                   </tr>
                 ))}

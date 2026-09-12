@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Metric } from "../components/Metric";
 import { Notice } from "../components/Notice";
-import { demoOrders } from "../data/demoData";
+import {
+  abrirTurnoCaja,
+  cerrarTurnoCaja,
+  getTurnoCajaActivo,
+  sumarPagoATurno
+} from "../services/cajaTurnosService";
 import { getOrdenes, updateOrdenEstado } from "../services/ordenesService";
 import { createPago } from "../services/pagosService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
@@ -15,15 +20,22 @@ const PAYMENT_METHODS = [
 ];
 
 export function Caja({ onPaymentsChanged }) {
-  const [orders, setOrders] = useState(mapDemoOrdersForCashier());
+  const [orders, setOrders] = useState([]);
   const [form, setForm] = useState(emptyPaymentForm());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [turnLoading, setTurnLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const [cajaAbierta, setCajaAbierta] = useState(false);
+  const [currentTurn, setCurrentTurn] = useState(null);
+  const [saldoInicial, setSaldoInicial] = useState("");
+  const [saldoCaja, setSaldoCaja] = useState(0);
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
+      setError("Configura las variables de Supabase para cargar caja real.");
       return;
     }
 
@@ -47,15 +59,20 @@ export function Caja({ onPaymentsChanged }) {
 
   async function loadCashierData() {
     setLoading(true);
+    setTurnLoading(true);
     setError("");
 
     try {
-      const data = await getOrdenes();
-      setOrders(data);
+      const [ordersData, activeTurn] = await Promise.all([getOrdenes(), getTurnoCajaActivo()]);
+      setOrders(ordersData);
+      setCurrentTurn(activeTurn);
+      setCajaAbierta(Boolean(activeTurn));
+      setSaldoCaja(Number(activeTurn?.saldo_sistema ?? 0));
     } catch (loadError) {
       setError(`No se pudieron cargar las cuentas: ${loadError.message}`);
     } finally {
       setLoading(false);
+      setTurnLoading(false);
     }
   }
 
@@ -70,18 +87,25 @@ export function Caja({ onPaymentsChanged }) {
     }
 
     if (!isSupabaseConfigured) {
-      setMessage("Pago registrado en modo demostración.");
-      setForm(emptyPaymentForm());
+      setError("No se puede registrar el pago porque Supabase no está configurado.");
       return;
     }
 
     setSaving(true);
 
     try {
-      await createPago(cleanPaymentForm(form));
+      await createPago(cleanPaymentForm(form, currentTurn));
 
       if (selectedOrder && Number(form.monto) >= Number(selectedOrder.saldoPendienteRaw ?? 0)) {
-        await updateOrdenEstado(selectedOrder.codigo, "facturada");
+        await updateOrdenEstado(selectedOrder.id, "facturada");
+      }
+
+      if (currentTurn) {
+        const updatedTurn = await sumarPagoATurno(currentTurn.id, currentTurn.saldo_sistema, form.monto);
+        setCurrentTurn(updatedTurn);
+        setSaldoCaja(Number(updatedTurn.saldo_sistema ?? 0));
+      } else {
+        setSaldoCaja((prev) => prev + Number(form.monto));
       }
 
       setForm(emptyPaymentForm());
@@ -99,6 +123,113 @@ export function Caja({ onPaymentsChanged }) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  async function handleAbrirCaja(e) {
+    e.preventDefault();
+    setMessage("");
+    setError("");
+
+    if (saldoInicial === "" || Number(saldoInicial) < 0) {
+      setError("Ingrese un saldo inicial válido.");
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setError("No se puede abrir caja porque Supabase no está configurado.");
+      return;
+    }
+
+    setTurnLoading(true);
+
+    try {
+      const turn = await abrirTurnoCaja(saldoInicial);
+      setCurrentTurn(turn);
+      setCajaAbierta(true);
+      setSaldoCaja(Number(turn.saldo_sistema ?? 0));
+      setMessage(`Caja abierta con ${formatCurrency(Number(turn.saldo_inicial))}`);
+    } catch (turnError) {
+      setError(`No se pudo abrir caja: ${turnError.message}`);
+    } finally {
+      setTurnLoading(false);
+    }
+  }
+
+  async function handleCerrarCaja() {
+    setMessage("");
+    setError("");
+
+    if (!currentTurn) {
+      setCajaAbierta(false);
+      setSaldoInicial("");
+      setSaldoCaja(0);
+      return;
+    }
+
+    setTurnLoading(true);
+
+    try {
+      await cerrarTurnoCaja(currentTurn.id, saldoCaja);
+      setCajaAbierta(false);
+      setCurrentTurn(null);
+      setMessage(`Caja cerrada. Total en caja: ${formatCurrency(saldoCaja)}`);
+      setSaldoInicial("");
+      setSaldoCaja(0);
+    } catch (turnError) {
+      setError(`No se pudo cerrar caja: ${turnError.message}`);
+    } finally {
+      setTurnLoading(false);
+    }
+  }
+
+  if (turnLoading && !cajaAbierta) {
+    return (
+      <div className="page-stack">
+        <section className="hero-band">
+          <div>
+            <span className="section-label">Caja</span>
+            <h2>Cargando turno</h2>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (!cajaAbierta) {
+    return (
+      <div className="page-stack">
+        <section className="hero-band">
+          <div>
+            <span className="section-label">Caja</span>
+            <h2>Apertura de turno</h2>
+          </div>
+        </section>
+        {message && <Notice type="success">{message}</Notice>}
+        {error && <Notice type="error">{error}</Notice>}
+        <section className="panel form-panel">
+          <h2>Abrir caja</h2>
+          <form className="form-grid" onSubmit={handleAbrirCaja}>
+            <label className="field-wide">
+              <span className="field-label">Saldo inicial en caja (Cambio) <span className="required">*</span></span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Ej. 1000.00"
+                value={saldoInicial}
+                onChange={(e) => setSaldoInicial(e.target.value)}
+                required
+              />
+            </label>
+            <div className="form-actions field-wide">
+              <button className="primary-action" disabled={turnLoading} type="submit">
+                {turnLoading ? "Abriendo..." : "Iniciar turno"}
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
       <section className="hero-band">
@@ -107,8 +238,8 @@ export function Caja({ onPaymentsChanged }) {
           <h2>Cobros y saldos pendientes</h2>
         </div>
         <div className="hero-meta">
-          <span>Por cobrar</span>
-          <strong>{loading ? "..." : formatCurrency(totalPending)}</strong>
+          <span>En Caja hoy</span>
+          <strong>{formatCurrency(saldoCaja)}</strong>
         </div>
       </section>
 
@@ -117,7 +248,7 @@ export function Caja({ onPaymentsChanged }) {
 
       <div className="metrics">
         <Metric label="Cuentas abiertas" value={loading ? "..." : pendingOrders.length} detail="Órdenes con saldo" />
-        <Metric label="Saldo pendiente" value={loading ? "..." : formatCurrency(totalPending)} detail="Pendiente de cobro" alert />
+        <Metric label="Saldo pendiente total" value={loading ? "..." : formatCurrency(totalPending)} detail="Pendiente de cobro" alert />
         <Metric label="Orden seleccionada" value={selectedOrder?.codigo ?? "N/D"} detail={selectedOrder?.cliente ?? "Sin selección"} />
         <Metric label="Saldo actual" value={selectedOrder ? selectedOrder.saldoPendiente : formatCurrency(0)} detail="Antes del pago" />
       </div>
@@ -185,25 +316,43 @@ export function Caja({ onPaymentsChanged }) {
           </form>
         </section>
 
-        <section className="panel compact-panel">
-          <div className="panel-heading">
-            <h2>Cuentas pendientes</h2>
-            <span className="count-pill">{loading ? "Cargando..." : `${pendingOrders.length} abiertas`}</span>
+        <section className="panel compact-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div>
+            <div className="panel-heading">
+              <h2>Cuentas pendientes</h2>
+              <span className="count-pill">{loading ? "Cargando..." : `${pendingOrders.length} abiertas`}</span>
+            </div>
+            <div className="cashier-list">
+              {pendingOrders.map((order) => (
+                <article className="cashier-item" key={order.id ?? order.codigo}>
+                  <div>
+                    <strong>{order.codigo}</strong>
+                    <span>{order.cliente}</span>
+                    <small>{order.vehiculo}</small>
+                  </div>
+                  <div>
+                    <span>Saldo</span>
+                    <strong>{order.saldoPendiente}</strong>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
-          <div className="cashier-list">
-            {pendingOrders.map((order) => (
-              <article className="cashier-item" key={order.id ?? order.codigo}>
-                <div>
-                  <strong>{order.codigo}</strong>
-                  <span>{order.cliente}</span>
-                  <small>{order.vehiculo}</small>
-                </div>
-                <div>
-                  <span>Saldo</span>
-                  <strong>{order.saldoPendiente}</strong>
-                </div>
-              </article>
-            ))}
+
+          <div className="panel form-panel" style={{ marginTop: 'auto' }}>
+            <h2>Cierre de turno</h2>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Al finalizar, realiza el cuadre de todo lo cobrado en el día.
+            </p>
+            <button
+              className="primary-action"
+              disabled={turnLoading}
+              style={{ width: '100%', background: 'var(--alert-fill)', color: 'var(--alert-text)' }}
+              onClick={handleCerrarCaja}
+              type="button"
+            >
+              {turnLoading ? "Cerrando..." : "Cerrar caja"}
+            </button>
           </div>
         </section>
       </div>
@@ -220,25 +369,12 @@ function emptyPaymentForm() {
   };
 }
 
-function cleanPaymentForm(form) {
+function cleanPaymentForm(form, currentTurn) {
   return {
     orden_id: form.orden_id,
+    caja_turno_id: currentTurn?.id ?? null,
     monto: Number(form.monto),
     metodo: form.metodo,
     referencia: form.referencia.trim() || null
   };
-}
-
-function mapDemoOrdersForCashier() {
-  return demoOrders.map((order, index) => {
-    const total = Number(String(order.total).replace(/[^\d.-]/g, "")) || 0;
-
-    return {
-      ...order,
-      id: `demo-order-${index}`,
-      totalRaw: total,
-      saldoPendienteRaw: order.estado === "Entregada" ? 0 : total,
-      saldoPendiente: order.estado === "Entregada" ? formatCurrency(0) : formatCurrency(total)
-    };
-  });
 }
