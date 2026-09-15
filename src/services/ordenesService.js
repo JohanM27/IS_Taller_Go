@@ -60,3 +60,40 @@ export async function updateOrdenEstado(ordenId, estado) {
     throw error;
   }
 }
+
+export async function getOrdenDetalles(ordenId) {
+  const [serviciosRes, repuestosRes] = await Promise.all([
+    supabase.from("detalle_servicios").select("*, servicios(nombre)").eq("orden_id", ordenId),
+    supabase.from("detalle_repuestos").select("*, repuestos(nombre)").eq("orden_id", ordenId)
+  ]);
+
+  const items = [];
+  
+  if (!serviciosRes.error && serviciosRes.data) {
+    serviciosRes.data.forEach(item => {
+      items.push({
+        id: 'srv_' + item.id,
+        tipo: 'Servicio',
+        nombre: item.servicios?.nombre || item.descripcion,
+        cantidad: item.cantidad || 1,
+        precio_unitario: item.precio_unitario,
+        subtotal: (item.cantidad || 1) * item.precio_unitario
+      });
+    });
+  }
+
+  if (!repuestosRes.error && repuestosRes.data) {
+    repuestosRes.data.forEach(item => {
+      items.push({
+        id: 'rep_' + item.id,
+        tipo: 'Repuesto',
+        nombre: item.repuestos?.nombre || item.descripcion,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        subtotal: item.cantidad * item.precio_unitario
+      });
+    });
+  }
+  
+  return items;
+}

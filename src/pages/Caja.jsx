@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Metric } from "../components/Metric";
 import { Notice } from "../components/Notice";
 import {
   abrirTurnoCaja,
@@ -7,24 +6,29 @@ import {
   getTurnoCajaActivo,
   sumarPagoATurno
 } from "../services/cajaTurnosService";
-import { getOrdenes, updateOrdenEstado } from "../services/ordenesService";
+import { getOrdenes, updateOrdenEstado, getOrdenDetalles, addRepuestoToOrden, addServicioToOrden } from "../services/ordenesService";
 import { createPago } from "../services/pagosService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { formatCurrency } from "../utils/formatters";
+import { getRepuestos } from "../services/repuestosService";
+import { getServicios } from "../services/serviciosService";
 
-const PAYMENT_METHODS = [
-  { value: "efectivo", label: "Efectivo" },
-  { value: "tarjeta", label: "Tarjeta" },
-  { value: "transferencia", label: "Transferencia" },
-  { value: "otro", label: "Otro" }
-];
+const ISV_RATE = 0.15;
 
 export function Caja({ onPaymentsChanged }) {
   const [orders, setOrders] = useState([]);
+  const [repuestos, setRepuestos] = useState([]);
+  const [servicios, setServicios] = useState([]);
+  const [orderDetails, setOrderDetails] = useState([]);
+
   const [form, setForm] = useState(emptyPaymentForm());
+  const [itemForm, setItemForm] = useState({ tipo: "repuesto", id: "", cantidad: 1 });
+  
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
   const [turnLoading, setTurnLoading] = useState(false);
+  
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -38,12 +42,11 @@ export function Caja({ onPaymentsChanged }) {
       setError("Configura las variables de Supabase para cargar caja real.");
       return;
     }
-
     loadCashierData();
   }, []);
 
   const pendingOrders = useMemo(
-    () => orders.filter((order) => Number(order.saldoPendienteRaw ?? 0) > 0),
+    () => orders.filter((order) => Number(order.saldoPendienteRaw ?? 0) > 0 || Number(order.totalRaw ?? 0) === 0),
     [orders]
   );
 
@@ -52,10 +55,43 @@ export function Caja({ onPaymentsChanged }) {
     [pendingOrders, form.orden_id]
   );
 
-  const totalPending = useMemo(
-    () => pendingOrders.reduce((sum, order) => sum + Number(order.saldoPendienteRaw ?? 0), 0),
-    [pendingOrders]
-  );
+  const selectedItem = useMemo(() => {
+    const source = itemForm.tipo === "repuesto" ? repuestos : servicios;
+    return source.find((item) => item.id === itemForm.id);
+  }, [itemForm.id, itemForm.tipo, repuestos, servicios]);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      loadOrderDetails(selectedOrder.id);
+      updateField("monto", selectedOrder.saldoPendienteRaw);
+    } else {
+      setOrderDetails([]);
+      updateField("monto", "");
+    }
+  }, [selectedOrder]);
+
+  async function loadOrderDetails(ordenId) {
+    try {
+      const details = await getOrdenDetalles(ordenId);
+      setOrderDetails(details);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  const breakdown = useMemo(() => {
+    if (!selectedOrder) {
+      return { subtotal: 0, isv: 0, total: 0, pagado: 0, saldo: 0 };
+    }
+
+    const subtotal = orderDetails.reduce((sum, item) => sum + Number(item.subtotal), 0);
+    const isv = subtotal * ISV_RATE;
+    const total = subtotal + isv;
+    const pagado = Number(selectedOrder.totalPagadoRaw ?? 0);
+    const saldo = Math.max(0, total - pagado);
+
+    return { subtotal, isv, total, pagado, saldo };
+  }, [selectedOrder, orderDetails]);
 
   async function loadCashierData() {
     setLoading(true);
@@ -63,21 +99,108 @@ export function Caja({ onPaymentsChanged }) {
     setError("");
 
     try {
-      const [ordersData, activeTurn] = await Promise.all([getOrdenes(), getTurnoCajaActivo()]);
+      const [ordersData, activeTurn, reps, servs] = await Promise.all([
+        getOrdenes(), 
+        getTurnoCajaActivo(),
+        getRepuestos(),
+        getServicios()
+      ]);
       setOrders(ordersData);
       setCurrentTurn(activeTurn);
       setCajaAbierta(Boolean(activeTurn));
       setSaldoCaja(Number(activeTurn?.saldo_sistema ?? 0));
+      setRepuestos(reps);
+      setServicios(servs);
     } catch (loadError) {
-      setError(`No se pudieron cargar las cuentas: ${loadError.message}`);
+      setError(`No se pudo cargar la info: ${loadError.message}`);
     } finally {
       setLoading(false);
       setTurnLoading(false);
     }
   }
 
+  async function handleAddItem(e) {
+    e.preventDefault();
+    if (!selectedOrder) return;
+    if (!itemForm.id) {
+      setError("Seleccione un producto o servicio.");
+      return;
+    }
+
+    setAddingItem(true);
+    setMessage("");
+    setError("");
+
+    try {
+      if (itemForm.tipo === "repuesto") {
+        const part = repuestos.find(r => r.id === itemForm.id);
+        const requestedQuantity = Number(itemForm.cantidad || 0);
+        const availableStock = Number(part?.stock ?? 0);
+
+        if (!part) {
+          setError("No se encontró el repuesto seleccionado.");
+          return;
+        }
+
+        if (requestedQuantity <= 0) {
+          setError("Ingrese una cantidad válida.");
+          return;
+        }
+
+        if (availableStock < requestedQuantity) {
+          setError(`Stock insuficiente para ${part.nombre}. Disponible: ${availableStock}.`);
+          return;
+        }
+
+        await addRepuestoToOrden({
+          orden_id: selectedOrder.id,
+          repuesto_id: part.id,
+          cantidad: requestedQuantity,
+          precio_unitario: part.precio_venta
+        });
+      } else {
+        const serv = servicios.find(s => s.id === itemForm.id);
+        const requestedQuantity = Number(itemForm.cantidad || 0);
+
+        if (!serv) {
+          setError("No se encontró el servicio seleccionado.");
+          return;
+        }
+
+        if (requestedQuantity <= 0) {
+          setError("Ingrese una cantidad válida.");
+          return;
+        }
+
+        await addServicioToOrden({
+          orden_id: selectedOrder.id,
+          servicio_id: serv.id,
+          cantidad: requestedQuantity,
+          precio_unitario: serv.precio,
+          descripcion: serv.nombre
+        });
+      }
+      
+      // Reload order details and orders to get new totals
+      const [ordersData, updatedRepuestos] = await Promise.all([getOrdenes(), getRepuestos()]);
+      setOrders(ordersData);
+      setRepuestos(updatedRepuestos);
+      await loadOrderDetails(selectedOrder.id);
+      
+      setItemForm({ tipo: "repuesto", id: "", cantidad: 1 });
+      setMessage("Item agregado a la cuenta.");
+    } catch (err) {
+      const message = err.message?.includes("Stock insuficiente")
+        ? "Stock insuficiente para el repuesto seleccionado."
+        : err.message;
+      setError(`Error al agregar item: ${message}`);
+    } finally {
+      setAddingItem(false);
+    }
+  }
+
   async function handleSubmit(event) {
-    event.preventDefault();
+    if (event) event.preventDefault();
     setMessage("");
     setError("");
 
@@ -96,7 +219,7 @@ export function Caja({ onPaymentsChanged }) {
     try {
       await createPago(cleanPaymentForm(form, currentTurn));
 
-      if (selectedOrder && Number(form.monto) >= Number(selectedOrder.saldoPendienteRaw ?? 0)) {
+      if (selectedOrder && Number(form.monto) >= Number(breakdown.saldo)) {
         await updateOrdenEstado(selectedOrder.id, "facturada");
       }
 
@@ -109,6 +232,7 @@ export function Caja({ onPaymentsChanged }) {
       }
 
       setForm(emptyPaymentForm());
+      setOrderDetails([]);
       setMessage("Pago registrado correctamente.");
       await loadCashierData();
       await onPaymentsChanged?.();
@@ -127,19 +251,11 @@ export function Caja({ onPaymentsChanged }) {
     e.preventDefault();
     setMessage("");
     setError("");
-
     if (saldoInicial === "" || Number(saldoInicial) < 0) {
       setError("Ingrese un saldo inicial válido.");
       return;
     }
-
-    if (!isSupabaseConfigured) {
-      setError("No se puede abrir caja porque Supabase no está configurado.");
-      return;
-    }
-
     setTurnLoading(true);
-
     try {
       const turn = await abrirTurnoCaja(saldoInicial);
       setCurrentTurn(turn);
@@ -154,23 +270,21 @@ export function Caja({ onPaymentsChanged }) {
   }
 
   async function handleCerrarCaja() {
+    if(!window.confirm(`¿Estás seguro de cerrar la caja con ${formatCurrency(saldoCaja)} en sistema?`)) return;
     setMessage("");
     setError("");
-
     if (!currentTurn) {
       setCajaAbierta(false);
       setSaldoInicial("");
       setSaldoCaja(0);
       return;
     }
-
     setTurnLoading(true);
-
     try {
       await cerrarTurnoCaja(currentTurn.id, saldoCaja);
       setCajaAbierta(false);
       setCurrentTurn(null);
-      setMessage(`Caja cerrada. Total en caja: ${formatCurrency(saldoCaja)}`);
+      setMessage(`Caja cerrada. Total entregado: ${formatCurrency(saldoCaja)}`);
       setSaldoInicial("");
       setSaldoCaja(0);
     } catch (turnError) {
@@ -183,12 +297,7 @@ export function Caja({ onPaymentsChanged }) {
   if (turnLoading && !cajaAbierta) {
     return (
       <div className="page-stack">
-        <section className="hero-band">
-          <div>
-            <span className="section-label">Caja</span>
-            <h2>Cargando turno</h2>
-          </div>
-        </section>
+        <section className="hero-band"><h2>Cargando turno...</h2></section>
       </div>
     );
   }
@@ -197,32 +306,19 @@ export function Caja({ onPaymentsChanged }) {
     return (
       <div className="page-stack">
         <section className="hero-band">
-          <div>
-            <span className="section-label">Caja</span>
-            <h2>Apertura de turno</h2>
-          </div>
+          <div><span className="section-label">Punto de venta</span><h2>Apertura de caja</h2></div>
         </section>
         {message && <Notice type="success">{message}</Notice>}
         {error && <Notice type="error">{error}</Notice>}
-        <section className="panel form-panel">
-          <h2>Abrir caja</h2>
+        <section className="panel form-panel" style={{ maxWidth: '500px', margin: '0 auto' }}>
+          <h2>Iniciar turno</h2>
           <form className="form-grid" onSubmit={handleAbrirCaja}>
             <label className="field-wide">
-              <span className="field-label">Saldo inicial en caja (Cambio) <span className="required">*</span></span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Ej. 1000.00"
-                value={saldoInicial}
-                onChange={(e) => setSaldoInicial(e.target.value)}
-                required
-              />
+              <span className="field-label">Fondo de caja (lempiras) *</span>
+              <input type="number" min="0" step="0.01" value={saldoInicial} onChange={(e) => setSaldoInicial(e.target.value)} required style={{ fontSize: '24px', padding: '16px', textAlign: 'right' }} />
             </label>
             <div className="form-actions field-wide">
-              <button className="primary-action" disabled={turnLoading} type="submit">
-                {turnLoading ? "Abriendo..." : "Iniciar turno"}
-              </button>
+              <button className="primary-action" disabled={turnLoading} type="submit" style={{ width: '100%', fontSize: '18px', padding: '16px' }}>{turnLoading ? "Abriendo..." : "Abrir caja"}</button>
             </div>
           </form>
         </section>
@@ -232,128 +328,252 @@ export function Caja({ onPaymentsChanged }) {
 
   return (
     <div className="page-stack">
-      <section className="hero-band">
-        <div>
-          <span className="section-label">Caja</span>
-          <h2>Cobros y saldos pendientes</h2>
-        </div>
-        <div className="hero-meta">
-          <span>En Caja hoy</span>
-          <strong>{formatCurrency(saldoCaja)}</strong>
-        </div>
-      </section>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+         <div className="hero-meta" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div><span>En Caja (Total)</span><strong style={{ fontSize: '24px', color: 'var(--success)' }}>{formatCurrency(saldoCaja)}</strong></div>
+            <button className="ghost-action" onClick={handleCerrarCaja} style={{ color: 'var(--danger)', background: '#fee2e2' }}>Cerrar Caja</button>
+         </div>
+      </div>
 
       {message && <Notice type="success">{message}</Notice>}
       {error && <Notice type="error">{error}</Notice>}
 
-      <div className="metrics">
-        <Metric label="Cuentas abiertas" value={loading ? "..." : pendingOrders.length} detail="Órdenes con saldo" />
-        <Metric label="Saldo pendiente total" value={loading ? "..." : formatCurrency(totalPending)} detail="Pendiente de cobro" alert />
-        <Metric label="Orden seleccionada" value={selectedOrder?.codigo ?? "N/D"} detail={selectedOrder?.cliente ?? "Sin selección"} />
-        <Metric label="Saldo actual" value={selectedOrder ? selectedOrder.saldoPendiente : formatCurrency(0)} detail="Antes del pago" />
-      </div>
+      <div className="split" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
+        
+        {/* LEFT COLUMN - TICKET & PRODUCT ADDER */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* TICKET PANEL */}
+          <section className="panel" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minHeight: '400px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '20px', borderBottom: '2px dashed #cbd5e1', textAlign: 'center' }}>
+              <h2 style={{ fontSize: '24px', margin: '0' }}>Ticket de pago</h2>
+              <p style={{ color: 'var(--muted)', margin: '4px 0 0 0' }}>TallerGo POS</p>
+            </div>
+            
+            <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {!selectedOrder ? (
+                <div style={{ textAlign: 'center', color: 'var(--muted)', margin: 'auto' }}>
+                  Selecciona un cliente u orden a la derecha.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ marginBottom: '20px', fontSize: '14px' }}>
+                    <strong>Orden: </strong> {selectedOrder.codigo}<br/>
+                    <strong>Cliente: </strong> {selectedOrder.cliente}<br/>
+                    <strong>Vehículo: </strong> {selectedOrder.vehiculo}
+                  </div>
 
-      <div className="content-grid">
-        <section className="panel form-panel">
-          <h2>Registrar pago</h2>
-          <form className="form-grid" onSubmit={handleSubmit}>
-            <label className="field-wide">
-              <span className="field-label">Orden <span className="required">*</span></span>
+                  <table style={{ width: '100%', marginBottom: '20px', background: 'transparent' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ background: 'transparent', padding: '8px 0', fontSize: '12px', color: 'var(--muted)' }}>Cant.</th>
+                        <th style={{ background: 'transparent', padding: '8px 0', fontSize: '12px', color: 'var(--muted)' }}>Descripción</th>
+                        <th style={{ background: 'transparent', padding: '8px 0', textAlign: 'right', fontSize: '12px', color: 'var(--muted)' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orderDetails.length === 0 ? (
+                        <tr><td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Ticket vacío. Agrega items abajo.</td></tr>
+                      ) : (
+                        orderDetails.map(item => (
+                          <tr key={item.id}>
+                            <td style={{ padding: '8px 0', fontWeight: 'bold' }}>{item.cantidad}x</td>
+                            <td style={{ padding: '8px 0' }}>{item.nombre} <br/><small style={{color:'var(--muted)'}}>{item.tipo} a {formatCurrency(item.precio_unitario)} c/u</small></td>
+                            <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(item.subtotal)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+
+                  <div style={{ marginTop: 'auto', display: 'grid', gap: '8px', borderTop: '2px dashed var(--line)', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
+                      <span>Subtotal:</span><span>{formatCurrency(breakdown.subtotal)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
+                      <span>ISV (15%):</span><span>{formatCurrency(breakdown.isv)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '20px', marginTop: '8px' }}>
+                      <span>Total:</span><span>{formatCurrency(breakdown.total)}</span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)', borderTop: '1px solid var(--line)', paddingTop: '8px', marginTop: '8px' }}>
+                      <span>Abonado:</span><span>{formatCurrency(breakdown.pagado)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '24px', color: 'var(--danger)' }}>
+                      <span>Por pagar:</span><span>{formatCurrency(breakdown.saldo)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* QUICK ADD ITEM BAR */}
+          <section className="panel" style={{ padding: '16px', background: 'var(--surface)' }}>
+            <h3 style={{ fontSize: '14px', marginBottom: '12px', marginTop: 0 }}>Agregar a la cuenta</h3>
+            <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+              <label style={{ flex: 1, fontSize: '12px' }}>
+                Tipo
+                <select 
+                  value={itemForm.tipo} 
+                  onChange={(e) => setItemForm({...itemForm, tipo: e.target.value, id: ""})}
+                  disabled={!selectedOrder}
+                  style={{ minHeight: '36px', width: '100%' }}
+                >
+                  <option value="repuesto">Repuesto</option>
+                  <option value="servicio">Servicio</option>
+                </select>
+              </label>
+              
+              <label style={{ flex: 3, fontSize: '12px' }}>
+                Producto o servicio
+                <select 
+                  value={itemForm.id} 
+                  onChange={(e) => setItemForm({...itemForm, id: e.target.value})}
+                  disabled={!selectedOrder}
+                  required
+                  style={{ minHeight: '36px', width: '100%' }}
+                >
+                  <option value="">Seleccionar...</option>
+                  {itemForm.tipo === "repuesto" 
+                    ? repuestos.map(r => (
+                        <option disabled={Number(r.stock ?? 0) <= 0} key={r.id} value={r.id}>
+                          {r.nombre} - {formatCurrency(r.precio_venta)} - Stock: {r.stock}
+                        </option>
+                      ))
+                    : servicios.map(s => <option key={s.id} value={s.id}>{s.nombre} - {formatCurrency(s.precio)}</option>)
+                  }
+                </select>
+              </label>
+
+              <label style={{ flex: 1, fontSize: '12px' }}>
+                Cant.
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={itemForm.cantidad} 
+                  onChange={(e) => setItemForm({...itemForm, cantidad: e.target.value})}
+                  disabled={!selectedOrder}
+                  required
+                  max={itemForm.tipo === "repuesto" && selectedItem ? Number(selectedItem.stock ?? 0) : undefined}
+                  style={{ minHeight: '36px', width: '100%' }}
+                />
+              </label>
+
+              <button 
+                className="primary-action" 
+                type="submit" 
+                disabled={
+                  !selectedOrder ||
+                  addingItem ||
+                  (itemForm.tipo === "repuesto" && selectedItem && Number(selectedItem.stock ?? 0) <= 0)
+                }
+                style={{ minHeight: '36px', padding: '0 16px' }}
+              >
+                Agregar
+              </button>
+            </form>
+            {itemForm.tipo === "repuesto" && selectedItem && (
+              <p style={{ color: "var(--muted)", fontSize: "12px", margin: "8px 0 0" }}>
+                Existencia disponible: {selectedItem.stock}
+              </p>
+            )}
+          </section>
+
+        </div>
+
+        {/* RIGHT COLUMN - POS TERMINAL */}
+        <section className="panel" style={{ padding: '30px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%' }}>
+            
+            {/* 1. Seleccionar Orden */}
+            <div>
+              <label style={{ fontSize: '16px', marginBottom: '8px', display: 'block' }}>1. Seleccionar cliente u orden</label>
               <select
                 value={form.orden_id}
                 onChange={(event) => updateField("orden_id", event.target.value)}
                 required
+                style={{ width: '100%', fontSize: '16px', padding: '12px' }}
               >
-                <option value="">Seleccionar orden</option>
+                <option value="">Buscar cuenta abierta</option>
                 {pendingOrders.map((order) => (
                   <option key={order.id ?? order.codigo} value={order.id}>
-                    {order.codigo} - {order.cliente} - {order.saldoPendiente}
+                    {order.cliente} ({order.codigo})
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="field-label">Monto <span className="required">*</span></span>
+            </div>
+
+            {/* 2. Método de pago */}
+            <div>
+               <label style={{ fontSize: '16px', marginBottom: '8px', display: 'block' }}>2. Método de pago</label>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => updateField("metodo", "efectivo")}
+                    style={{ 
+                      padding: '16px', fontSize: '16px', borderRadius: '12px',
+                      border: form.metodo === 'efectivo' ? '2px solid var(--accent)' : '1px solid var(--line)',
+                      background: form.metodo === 'efectivo' ? 'var(--accent-soft)' : '#fff',
+                      color: form.metodo === 'efectivo' ? 'var(--accent-dark)' : 'var(--ink)',
+                      fontWeight: '800', cursor: 'pointer'
+                    }}
+                  >Efectivo</button>
+                  <button 
+                    type="button" 
+                    onClick={() => updateField("metodo", "tarjeta")}
+                    style={{ 
+                      padding: '16px', fontSize: '16px', borderRadius: '12px',
+                      border: form.metodo === 'tarjeta' ? '2px solid var(--accent)' : '1px solid var(--line)',
+                      background: form.metodo === 'tarjeta' ? 'var(--accent-soft)' : '#fff',
+                      color: form.metodo === 'tarjeta' ? 'var(--accent-dark)' : 'var(--ink)',
+                      fontWeight: '800', cursor: 'pointer'
+                    }}
+                  >Tarjeta</button>
+               </div>
+            </div>
+
+            {/* 3. Monto a pagar */}
+            <div>
+              <label style={{ fontSize: '16px', marginBottom: '8px', display: 'block' }}>3. Monto a recibir</label>
               <input
                 min="0.01"
                 onChange={(event) => updateField("monto", event.target.value)}
-                placeholder="1500.00"
+                placeholder="0.00"
                 required
                 step="0.01"
                 type="number"
                 value={form.monto}
+                style={{ width: '100%', fontSize: '32px', padding: '20px', textAlign: 'right', fontWeight: '900', color: 'var(--accent-dark)' }}
               />
-            </label>
-            <label>
-              Método
-              <select value={form.metodo} onChange={(event) => updateField("metodo", event.target.value)}>
-                {PAYMENT_METHODS.map((method) => (
-                  <option key={method.value} value={method.value}>
-                    {method.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field-wide">
-              Referencia
-              <input
-                onChange={(event) => updateField("referencia", event.target.value)}
-                placeholder="Número de recibo, autorización o comprobante"
-                value={form.referencia}
-              />
-            </label>
-            <div className="detail-total field-wide">
-              <span>Saldo después del pago</span>
-              <strong>
-                {formatCurrency(Math.max(0, Number(selectedOrder?.saldoPendienteRaw ?? 0) - Number(form.monto || 0)))}
-              </strong>
+              
+              {selectedOrder && (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                  <button type="button" className="ghost-action" onClick={() => updateField("monto", breakdown?.saldo)}>Exacto</button>
+                  <button type="button" className="ghost-action" onClick={() => updateField("monto", "500")}>+ 500</button>
+                  <button type="button" className="ghost-action" onClick={() => updateField("monto", "1000")}>+ 1000</button>
+                </div>
+              )}
             </div>
-            <div className="form-actions field-wide">
-              <button className="primary-action" disabled={saving} type="submit">
-                {saving ? "Registrando..." : "Registrar pago"}
+
+            {/* 4. Acción */}
+            <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
+              <button 
+                className="primary-action" 
+                disabled={saving || !selectedOrder || (orderDetails.length === 0)} 
+                type="submit"
+                style={{ 
+                  width: '100%', fontSize: '20px', padding: '24px', 
+                  background: (saving || !selectedOrder || orderDetails.length === 0) ? 'var(--line)' : 'var(--success)', 
+                  boxShadow: '0 10px 25px rgba(16, 185, 129, 0.4)' 
+                }}
+              >
+                {saving ? "Procesando..." : "Procesar pago"}
               </button>
             </div>
+            
           </form>
-        </section>
-
-        <section className="panel compact-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <div className="panel-heading">
-              <h2>Cuentas pendientes</h2>
-              <span className="count-pill">{loading ? "Cargando..." : `${pendingOrders.length} abiertas`}</span>
-            </div>
-            <div className="cashier-list">
-              {pendingOrders.map((order) => (
-                <article className="cashier-item" key={order.id ?? order.codigo}>
-                  <div>
-                    <strong>{order.codigo}</strong>
-                    <span>{order.cliente}</span>
-                    <small>{order.vehiculo}</small>
-                  </div>
-                  <div>
-                    <span>Saldo</span>
-                    <strong>{order.saldoPendiente}</strong>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel form-panel" style={{ marginTop: 'auto' }}>
-            <h2>Cierre de turno</h2>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              Al finalizar, realiza el cuadre de todo lo cobrado en el día.
-            </p>
-            <button
-              className="primary-action"
-              disabled={turnLoading}
-              style={{ width: '100%', background: 'var(--alert-fill)', color: 'var(--alert-text)' }}
-              onClick={handleCerrarCaja}
-              type="button"
-            >
-              {turnLoading ? "Cerrando..." : "Cerrar caja"}
-            </button>
-          </div>
         </section>
       </div>
     </div>
@@ -361,12 +581,7 @@ export function Caja({ onPaymentsChanged }) {
 }
 
 function emptyPaymentForm() {
-  return {
-    orden_id: "",
-    monto: "",
-    metodo: "efectivo",
-    referencia: ""
-  };
+  return { orden_id: "", monto: "", metodo: "efectivo", referencia: "" };
 }
 
 function cleanPaymentForm(form, currentTurn) {

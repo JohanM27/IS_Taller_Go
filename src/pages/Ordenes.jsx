@@ -2,13 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Notice } from "../components/Notice";
 import { getClientes } from "../services/clientesService";
 import {
-  addRepuestoToOrden,
-  addServicioToOrden,
   createOrdenTrabajo,
   getOrdenes
 } from "../services/ordenesService";
-import { getRepuestos } from "../services/repuestosService";
-import { getServicios } from "../services/serviciosService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { getVehiculos } from "../services/vehiculosService";
 import { formatCurrency } from "../utils/formatters";
@@ -18,13 +14,9 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
   const [orders, setOrders] = useState(loadedOrders);
   const [clients, setClients] = useState([]);
   const [vehicles, setVehicles] = useState([]);
-  const [services, setServices] = useState([]);
-  const [parts, setParts] = useState([]);
   const [form, setForm] = useState(emptyOrderForm());
-  const [detailForm, setDetailForm] = useState(emptyDetailForm());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [savingDetail, setSavingDetail] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -46,19 +38,15 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
     setError("");
 
     try {
-      const [ordersData, clientsData, vehiclesData, servicesData, partsData] = await Promise.all([
+      const [ordersData, clientsData, vehiclesData] = await Promise.all([
         getOrdenes(),
         getClientes(),
-        getVehiculos(),
-        getServicios(),
-        getRepuestos()
+        getVehiculos()
       ]);
 
       setOrders(ordersData);
       setClients(clientsData);
       setVehicles(vehiclesData);
-      setServices(servicesData);
-      setParts(partsData);
     } catch (loadError) {
       setError(`No se pudieron cargar los datos de órdenes: ${loadError.message}`);
     } finally {
@@ -69,16 +57,6 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
   const availableVehicles = useMemo(
     () => vehicles.filter((vehicle) => vehicle.cliente_id === form.cliente_id),
     [vehicles, form.cliente_id]
-  );
-
-  const selectedService = useMemo(
-    () => services.find((service) => service.id === detailForm.servicio_id),
-    [services, detailForm.servicio_id]
-  );
-
-  const selectedPart = useMemo(
-    () => parts.find((part) => part.id === detailForm.repuesto_id),
-    [parts, detailForm.repuesto_id]
   );
 
   async function handleSubmit(event) {
@@ -111,89 +89,12 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
     }
   }
 
-  async function handleDetailSubmit(event) {
-    event.preventDefault();
-    setMessage("");
-    setError("");
-
-    if (!detailForm.orden_id) {
-      setError("Seleccione una orden de trabajo.");
-      return;
-    }
-
-    if (detailForm.tipo === "servicio" && !detailForm.servicio_id) {
-      setError("Seleccione el servicio realizado.");
-      return;
-    }
-
-    if (detailForm.tipo === "repuesto" && !detailForm.repuesto_id) {
-      setError("Seleccione el repuesto utilizado.");
-      return;
-    }
-
-    if (!detailForm.precio_unitario || Number(detailForm.precio_unitario) < 0) {
-      setError("Ingrese un precio unitario válido.");
-      return;
-    }
-
-    if (!isSupabaseConfigured) {
-      setError("No se puede agregar el detalle porque Supabase no está configurado.");
-      return;
-    }
-
-    setSavingDetail(true);
-
-    try {
-      if (detailForm.tipo === "servicio") {
-        await addServicioToOrden(cleanServiceDetailForm(detailForm, selectedService));
-      } else {
-        await addRepuestoToOrden(cleanPartDetailForm(detailForm, selectedPart));
-      }
-
-      setDetailForm(emptyDetailForm());
-      setMessage("Detalle agregado correctamente.");
-      await loadOrderScreenData();
-      await onOrdersChanged?.();
-    } catch (detailError) {
-      setError(`No se pudo agregar el detalle: ${detailError.message}`);
-    } finally {
-      setSavingDetail(false);
-    }
-  }
-
   function updateField(field, value) {
     setForm((current) => {
       const next = { ...current, [field]: value };
 
       if (field === "cliente_id") {
         next.vehiculo_id = "";
-      }
-
-      return next;
-    });
-  }
-
-  function updateDetailField(field, value) {
-    setDetailForm((current) => {
-      const next = { ...current, [field]: value };
-
-      if (field === "tipo") {
-        next.servicio_id = "";
-        next.repuesto_id = "";
-        next.precio_unitario = "";
-        next.descripcion = "";
-      }
-
-      if (field === "servicio_id") {
-        const service = services.find((item) => item.id === value);
-        next.precio_unitario = service?.precio ? String(service.precio) : "";
-        next.descripcion = service?.descripcion || service?.nombre || "";
-      }
-
-      if (field === "repuesto_id") {
-        const part = parts.find((item) => item.id === value);
-        next.precio_unitario = part?.precio_venta ? String(part.precio_venta) : "";
-        next.descripcion = part?.nombre || "";
       }
 
       return next;
@@ -279,104 +180,6 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
               </div>
             </form>
           </section>
-
-          <section className="panel form-panel">
-            <h2>Detalle de orden</h2>
-            <form className="form-grid" onSubmit={handleDetailSubmit}>
-              <label>
-                <span className="field-label">Orden <span className="required">*</span></span>
-                <select
-                  value={detailForm.orden_id}
-                  onChange={(event) => updateDetailField("orden_id", event.target.value)}
-                  required
-                >
-                  <option value="">Seleccionar orden</option>
-                  {orders.map((order) => (
-                    <option key={order.id ?? order.codigo} value={order.id ?? order.codigo}>
-                      {order.codigo} - {order.cliente}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Tipo de detalle
-                <select value={detailForm.tipo} onChange={(event) => updateDetailField("tipo", event.target.value)}>
-                  <option value="servicio">Servicio realizado</option>
-                  <option value="repuesto">Repuesto utilizado</option>
-                </select>
-              </label>
-
-              {detailForm.tipo === "servicio" ? (
-                <label>
-                  <span className="field-label">Servicio <span className="required">*</span></span>
-                  <select
-                    value={detailForm.servicio_id}
-                    onChange={(event) => updateDetailField("servicio_id", event.target.value)}
-                    required
-                  >
-                    <option value="">Seleccionar servicio</option>
-                    {services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.nombre} - {formatCurrency(service.precio)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <label>
-                  <span className="field-label">Repuesto <span className="required">*</span></span>
-                  <select
-                    value={detailForm.repuesto_id}
-                    onChange={(event) => updateDetailField("repuesto_id", event.target.value)}
-                    required
-                  >
-                    <option value="">Seleccionar repuesto</option>
-                    {parts.map((part) => (
-                      <option key={part.id} value={part.id}>
-                        {part.codigo} - {part.nombre} ({part.stock} disponibles)
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-
-              <label>
-                Cantidad
-                <input
-                  min="1"
-                  onChange={(event) => updateDetailField("cantidad", event.target.value)}
-                  type="number"
-                  value={detailForm.cantidad}
-                />
-              </label>
-              <label>
-                Precio unitario
-                <input
-                  min="0"
-                  onChange={(event) => updateDetailField("precio_unitario", event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={detailForm.precio_unitario}
-                />
-              </label>
-              <label className="field-wide">
-                Descripción
-                <textarea
-                  onChange={(event) => updateDetailField("descripcion", event.target.value)}
-                  value={detailForm.descripcion}
-                />
-              </label>
-              <div className="detail-total field-wide">
-                <span>Total del detalle</span>
-                <strong>{formatCurrency(Number(detailForm.cantidad || 0) * Number(detailForm.precio_unitario || 0))}</strong>
-              </div>
-              <div className="form-actions field-wide">
-                <button className="primary-action" disabled={savingDetail} type="submit">
-                  {savingDetail ? "Agregando..." : "Agregar detalle"}
-                </button>
-              </div>
-            </form>
-          </section>
         </>
       )}
 
@@ -427,18 +230,6 @@ function emptyOrderForm() {
   };
 }
 
-function emptyDetailForm() {
-  return {
-    orden_id: "",
-    tipo: "servicio",
-    servicio_id: "",
-    repuesto_id: "",
-    cantidad: "1",
-    precio_unitario: "",
-    descripcion: ""
-  };
-}
-
 function generateOrderCode() {
   const now = new Date();
   const year = String(now.getFullYear()).slice(-2);
@@ -464,24 +255,5 @@ function cleanOrderForm(form) {
     estado: form.estado,
     descripcion_problema: form.descripcion_problema.trim(),
     observaciones: form.observaciones.trim() || null
-  };
-}
-
-function cleanServiceDetailForm(form, selectedService) {
-  return {
-    orden_id: form.orden_id,
-    servicio_id: form.servicio_id,
-    descripcion: form.descripcion.trim() || selectedService?.nombre || "Servicio realizado",
-    cantidad: Number(form.cantidad) || 1,
-    precio_unitario: Number(form.precio_unitario)
-  };
-}
-
-function cleanPartDetailForm(form, selectedPart) {
-  return {
-    orden_id: form.orden_id,
-    repuesto_id: form.repuesto_id,
-    cantidad: Number(form.cantidad) || 1,
-    precio_unitario: Number(form.precio_unitario || selectedPart?.precio_venta || 0)
   };
 }

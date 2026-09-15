@@ -165,6 +165,8 @@ for each row execute function set_actualizado_en();
 create or replace function descontar_stock_repuesto()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
     update repuestos
@@ -188,6 +190,8 @@ for each row execute function descontar_stock_repuesto();
 create or replace function devolver_stock_repuesto()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
     update repuestos
@@ -229,9 +233,11 @@ select
     concat(v.marca, ' ', v.modelo) as vehiculo,
     coalesce(ts.total, 0) as total_servicios,
     coalesce(tr.total, 0) as total_repuestos,
-    coalesce(ts.total, 0) + coalesce(tr.total, 0) as total_orden,
+    (coalesce(ts.total, 0) + coalesce(tr.total, 0)) + round((coalesce(ts.total, 0) + coalesce(tr.total, 0)) * 0.15, 2) as total_orden,
     coalesce(tp.total, 0) as total_pagado,
-    (coalesce(ts.total, 0) + coalesce(tr.total, 0)) - coalesce(tp.total, 0) as saldo_pendiente
+    ((coalesce(ts.total, 0) + coalesce(tr.total, 0)) + round((coalesce(ts.total, 0) + coalesce(tr.total, 0)) * 0.15, 2)) - coalesce(tp.total, 0) as saldo_pendiente,
+    coalesce(ts.total, 0) + coalesce(tr.total, 0) as subtotal_orden,
+    round((coalesce(ts.total, 0) + coalesce(tr.total, 0)) * 0.15, 2) as impuesto_orden
 from ordenes_trabajo o
 join clientes c on c.id = o.cliente_id
 join vehiculos v on v.id = o.vehiculo_id
