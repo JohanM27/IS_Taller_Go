@@ -25,7 +25,7 @@ export function Dashboard({ data }) {
         <Metric label="Stock bajo" value={data.loading ? "..." : data.stockBajoCount} detail="Repuestos por revisar" alert />
       </div>
 
-      <div className="content-grid">
+      <div className="page-stack">
         <section className="panel">
           <div className="panel-heading">
             <h2>Órdenes recientes</h2>
@@ -54,29 +54,6 @@ export function Dashboard({ data }) {
           </div>
         </section>
 
-        <section className="panel compact-panel">
-          <div className="panel-heading">
-            <h2>Flujo de atención</h2>
-          </div>
-          <ol className="timeline">
-            <li>
-              <strong>Recepción</strong>
-              <span>Cliente y vehículo registrados.</span>
-            </li>
-            <li>
-              <strong>Diagnóstico</strong>
-              <span>Orden creada con problema reportado.</span>
-            </li>
-            <li>
-              <strong>Servicio</strong>
-              <span>Mano de obra y repuestos asociados.</span>
-            </li>
-            <li>
-              <strong>Entrega</strong>
-              <span>Pago registrado y orden cerrada.</span>
-            </li>
-          </ol>
-        </section>
       </div>
     </section>
   );

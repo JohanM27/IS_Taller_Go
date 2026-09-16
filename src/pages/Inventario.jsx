@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Notice } from "../components/Notice";
-import { createRepuesto, getRepuestos } from "../services/repuestosService";
+import { createRepuesto, getRepuestos, updateRepuesto } from "../services/repuestosService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { formatCurrency } from "../utils/formatters";
 
@@ -150,6 +150,7 @@ export function Inventario({ onInventoryChanged }) {
               placeholder="3"
               type="number"
             />
+            <small>La alerta aparece al llegar al mínimo. Con 0, avisa al agotarse.</small>
           </label>
           <div className="form-actions field-wide">
             {message && <Notice type="success">{message}</Notice>}
@@ -163,24 +164,68 @@ export function Inventario({ onInventoryChanged }) {
 
       <section className="inventory-grid">
         {items.map((item) => (
-          <InventoryCard item={item} key={item.id ?? item.codigo} />
+          <InventoryCard item={item} key={item.id ?? item.codigo} onSaved={async () => {
+            await loadInventory();
+            await onInventoryChanged?.();
+          }} />
         ))}
       </section>
     </div>
   );
 }
 
-function InventoryCard({ item }) {
+function InventoryCard({ item, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ nombre: "", stock: "", stock_minimo: "", precio_venta: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function startEditing(event) {
+    event.preventDefault();
+    setDraft({ nombre: item.nombre, stock: String(item.stock), stock_minimo: String(item.stock_minimo), precio_venta: String(item.precio_venta) });
+    setError("");
+    setEditing(true);
+  }
+
+  async function saveChanges(event) {
+    event.preventDefault();
+    if (!editing || saving) return;
+    const stock = Number(draft.stock);
+    const minimum = Number(draft.stock_minimo);
+    const precio = Number(draft.precio_venta);
+    if (draft.precio_venta === "" || !Number.isFinite(precio) || precio < 0 || !draft.nombre.trim() || draft.stock === "" || draft.stock_minimo === "" ||
+        !Number.isInteger(stock) || stock < 0 || !Number.isInteger(minimum) || minimum < 0) {
+      setError("Escribe un nombre, un precio no negativo y cantidades enteras iguales o mayores que 0.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await updateRepuesto(item.id, { nombre: draft.nombre.trim(), stock, stock_minimo: minimum, precio_venta: precio });
+      await onSaved();
+      setEditing(false);
+    } catch (saveError) {
+      setError(`No se pudieron guardar los cambios: ${saveError.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const stock = Number(item.stock ?? 0);
   const minimum = Number(item.stock_minimo ?? 0);
-  const percentage = minimum > 0 ? Math.min(100, (stock / minimum) * 100) : 100;
+  const percentage = stock === 0 ? 0 : minimum > 0 ? Math.min(100, (stock / minimum) * 100) : 100;
   const lowStock = stock <= minimum;
 
   return (
-    <article className={`inventory-card${lowStock ? " is-low" : ""}`}>
+    <form className={`inventory-card${lowStock ? " is-low" : ""}`} onSubmit={saveChanges}>
       <div>
         <span>{item.codigo}</span>
-        <strong>{item.nombre}</strong>
+        <strong className="inventory-name">
+          {editing ? (
+            <input className="inventory-inline-input" aria-label="Nombre" value={draft.nombre} disabled={saving} required
+              onChange={(event) => setDraft({ ...draft, nombre: event.target.value })} />
+          ) : item.nombre}
+        </strong>
       </div>
       <div className="stock-meter">
         <span style={{ width: `${percentage}%` }} />
@@ -188,19 +233,45 @@ function InventoryCard({ item }) {
       <dl className="inventory-details">
         <div>
           <dt>Stock</dt>
-          <dd>{stock}</dd>
+          <dd>{editing ? (
+            <input className="inventory-inline-input" aria-label="Stock actual" type="number" min="0" step="1" value={draft.stock} disabled={saving} required
+              onChange={(event) => setDraft({ ...draft, stock: event.target.value })} />
+          ) : stock}</dd>
         </div>
         <div>
           <dt>Mínimo</dt>
-          <dd>{minimum}</dd>
+          <dd>{editing ? (
+            <input className="inventory-inline-input" aria-label="Stock mínimo" title="Con 0, avisa al agotarse." type="number" min="0" step="1" value={draft.stock_minimo} disabled={saving} required
+              onChange={(event) => setDraft({ ...draft, stock_minimo: event.target.value })} />
+          ) : minimum}</dd>
         </div>
         <div>
-          <dt>Venta</dt>
-          <dd>{formatCurrency(item.precio_venta)}</dd>
+          <dt>Venta {editing ? "(L)" : ""}</dt>
+          <dd>{editing ? (
+            <input className="inventory-inline-input" aria-label="Precio de venta en lempiras" type="number" min="0" step="0.01" value={draft.precio_venta} disabled={saving} required
+              onChange={(event) => setDraft({ ...draft, precio_venta: event.target.value })} />
+          ) : formatCurrency(item.precio_venta)}</dd>
         </div>
       </dl>
       <p>{lowStock ? "Revisar existencia" : "Inventario estable"}</p>
-    </article>
+      {error && <Notice type="error">{error}</Notice>}
+      <div className="inventory-actions">
+        {editing ? (
+          <>
+            <button key="guardar" className="primary-action" type="submit" disabled={saving}>
+              {saving ? "Guardando..." : "Guardar"}
+            </button>
+            <button className="ghost-action" type="button" disabled={saving} onClick={() => { setEditing(false); setError(""); }}>
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button key="editar" className="ghost-action" type="button" onClick={startEditing} aria-label={`Editar ${item.nombre}`}>
+            Editar
+          </button>
+        )}
+      </div>
+    </form>
   );
 }
 

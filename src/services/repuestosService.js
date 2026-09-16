@@ -21,3 +21,15 @@ export async function createRepuesto(repuesto) {
     throw error;
   }
 }
+
+export async function updateRepuesto(id, cambios) {
+  const { data, error } = await supabase
+    .from("repuestos")
+    .update(cambios)
+    .eq("id", id)
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  return data;
+}

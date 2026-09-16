@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Notice } from "../components/Notice";
+import { Saldo } from "../components/Saldo";
 import { getClientes } from "../services/clientesService";
 import {
   createOrdenTrabajo,
@@ -208,7 +209,7 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
                   <td>{order.vehiculo}</td>
                   <td>{order.total ?? formatCurrency(0)}</td>
                   <td>{order.totalPagado ?? formatCurrency(0)}</td>
-                  <td>{order.saldoPendiente ?? formatCurrency(0)}</td>
+                  <td><Saldo value={order.saldoPendienteRaw} /></td>
                 </tr>
               ))}
             </tbody>
