@@ -9,6 +9,7 @@ import {
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { getVehiculos } from "../services/vehiculosService";
 import { formatCurrency } from "../utils/formatters";
+import { dateKey, displayDate, withinDates } from "../utils/reportDates";
 
 export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
   const isReadOnly = role === "administrador";
@@ -20,6 +21,10 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [from, setFrom] = useState(dateKey());
+  const [to, setTo] = useState(dateKey());
+  const invalidRange = isReadOnly && from && to && from > to;
+  const filteredOrders = !isReadOnly ? orders : invalidRange ? [] : orders.filter((order) => withinDates(order.fechaIngreso, from, to));
 
   useEffect(() => {
     setOrders(loadedOrders);
@@ -187,13 +192,25 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
       <section className="panel">
         <div className="panel-heading">
           <h2>{isReadOnly ? "Consulta general de órdenes" : "Órdenes registradas"}</h2>
-          <span className="count-pill">{loading ? "Cargando..." : `${orders.length} registradas`}</span>
+          <span className="count-pill">{loading ? "Cargando..." : `${filteredOrders.length} ${isReadOnly ? "en el período" : "registradas"}`}</span>
         </div>
+        {isReadOnly && <>
+        <div className="report-filters">
+          <label>Desde<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+          <label>Hasta<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
+          <button className="ghost-action" type="button" onClick={() => { const today = dateKey(); setFrom(today); setTo(today); }}>Hoy</button>
+          <button className="ghost-action" type="button" onClick={() => { const today = dateKey(); setFrom(`${today.slice(0, 7)}-01`); setTo(today); }}>Este mes</button>
+          <button className="ghost-action" type="button" onClick={() => { setFrom(""); setTo(""); }}>Todas</button>
+        </div>
+        <p>Filtro por fecha de ingreso, en horario de Honduras. Para consultar un día, usa la misma fecha en ambos campos.</p>
+        {invalidRange && <Notice type="error">La fecha inicial debe ser anterior o igual a la final.</Notice>}
+        </>}
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Código</th>
+                {isReadOnly && <th>Fecha</th>}
                 <th>Cliente</th>
                 <th>Vehículo</th>
                 <th>Total</th>
@@ -202,9 +219,10 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <tr key={order.id ?? order.codigo}>
                   <td>{order.codigo}</td>
+                  {isReadOnly && <td>{order.fechaIngreso ? displayDate(dateKey(order.fechaIngreso)) : "—"}</td>}
                   <td>{order.cliente}</td>
                   <td>{order.vehiculo}</td>
                   <td>{order.total ?? formatCurrency(0)}</td>
@@ -212,6 +230,7 @@ export function Ordenes({ orders: loadedOrders, onOrdersChanged, role }) {
                   <td><Saldo value={order.saldoPendienteRaw} /></td>
                 </tr>
               ))}
+              {!filteredOrders.length && !invalidRange && <tr><td colSpan={isReadOnly ? 7 : 6}>{loading ? "Cargando..." : isReadOnly ? "No hay órdenes en este período." : "No hay órdenes registradas."}</td></tr>}
             </tbody>
           </table>
         </div>

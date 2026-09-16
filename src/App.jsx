@@ -135,8 +135,8 @@ export function App() {
 
 function renderActiveView(activeView, dashboardData, loadDashboardData, role) {
   const views = {
-    dashboard: <Dashboard data={dashboardData} />,
-    inicio: <Dashboard data={dashboardData} />,
+    dashboard: <Dashboard data={dashboardData} role={role} />,
+    inicio: <Dashboard data={dashboardData} role={role} />,
     caja: <Caja onPaymentsChanged={loadDashboardData} />,
     ordenes: <Ordenes orders={dashboardData.orders} onOrdersChanged={loadDashboardData} role={role} />,
     clientes: <Clientes role={role} />,

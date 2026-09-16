@@ -1,38 +1,26 @@
 import { supabase } from "./supabaseClient";
-import { formatCurrency } from "../utils/formatters";
+import { getOrdenes } from "./ordenesService";
+import { readAll } from "./readAll";
+import { getPerfilActual } from "./perfilesService";
 
 export async function getDashboardData() {
-  const [ordenesResponse, clientesResponse, stockResponse] = await Promise.all([
-    supabase
-      .from("resumen_ordenes")
-      .select("id,codigo,cliente,vehiculo,estado,total_orden,total_pagado,saldo_pendiente")
-      .order("fecha_ingreso", { ascending: false })
-      .limit(8),
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) throw new Error("No hay una sesión activa.");
+  const profile = await getPerfilActual(user.id);
+  const isAdmin = profile.activo && profile.rol === "administrador";
+  const [orders, payments, clientesResponse, stockResponse, productDetails] = await Promise.all([
+    getOrdenes(),
+    isAdmin ? readAll(() => supabase.from("pagos")
+      .select("id,orden_id,monto,metodo,pagado_en")
+      .order("pagado_en", { ascending: false }).order("id")) : [],
     supabase.from("clientes").select("id", { count: "exact", head: true }),
-    supabase.from("repuestos_stock_bajo").select("id", { count: "exact", head: true })
+    supabase.from("repuestos_stock_bajo").select("id", { count: "exact", head: true }),
+    isAdmin ? readAll(() => supabase.from("detalle_repuestos")
+      .select("id,orden_id,repuesto_id,cantidad,precio_unitario,repuestos(codigo,nombre)")
+      .order("id")) : []
   ]);
-
-  const firstError = ordenesResponse.error || clientesResponse.error || stockResponse.error;
-
-  if (firstError) {
-    throw firstError;
-  }
-
-  return {
-    orders: ordenesResponse.data.map((order) => ({
-      id: order.id,
-      codigo: order.codigo,
-      cliente: order.cliente,
-      vehiculo: order.vehiculo,
-      estadoRaw: order.estado,
-      total: formatCurrency(order.total_orden),
-      totalRaw: Number(order.total_orden ?? 0),
-      totalPagado: formatCurrency(order.total_pagado),
-      totalPagadoRaw: Number(order.total_pagado ?? 0),
-      saldoPendiente: formatCurrency(order.saldo_pendiente),
-      saldoPendienteRaw: Number(order.saldo_pendiente ?? 0)
-    })),
-    clientesCount: clientesResponse.count ?? 0,
-    stockBajoCount: stockResponse.count ?? 0
-  };
+  const error = clientesResponse.error || stockResponse.error;
+  if (error) throw error;
+  return { orders, payments, productDetails, clientesCount: clientesResponse.count ?? 0, stockBajoCount: stockResponse.count ?? 0 };
 }

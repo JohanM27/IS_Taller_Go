@@ -21,3 +21,11 @@ export async function createServicio(servicio) {
     throw error;
   }
 }
+
+export async function updateServicio(id, cambios) {
+  const { data, error } = await supabase.from("servicios")
+    .update(cambios).eq("id", id)
+    .select("id, nombre, descripcion, precio, activo, creado_en").single();
+  if (error) throw error;
+  return data;
+}

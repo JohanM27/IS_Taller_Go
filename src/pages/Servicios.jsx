@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Notice } from "../components/Notice";
-import { createServicio, getServicios } from "../services/serviciosService";
+import { createServicio, getServicios, updateServicio } from "../services/serviciosService";
 import { isSupabaseConfigured } from "../services/supabaseClient";
 import { formatCurrency } from "../utils/formatters";
 
@@ -134,21 +134,74 @@ export function Servicios() {
 
       <section className="service-grid">
         {services.map((service) => (
-          <article className="service-card" key={service.id}>
-            <div>
-              <span>Servicio</span>
-              <strong>{service.nombre}</strong>
-            </div>
-            <p>{service.descripcion || "Sin descripción registrada"}</p>
-            <footer>
-              <span>Precio base</span>
-              <strong>{formatCurrency(service.precio)}</strong>
-            </footer>
-          </article>
+          <ServiceCard service={service} key={service.id} onSaved={(updated) => {
+            setServices((current) => current.map((item) => item.id === updated.id ? updated : item));
+          }} />
         ))}
       </section>
     </div>
   );
+}
+
+function ServiceCard({ service, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(emptyServiceForm());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function startEditing(event) {
+    event.preventDefault();
+    setDraft({ nombre: service.nombre, descripcion: service.descripcion ?? "", precio: String(service.precio) });
+    setError("");
+    setEditing(true);
+  }
+
+  async function saveChanges(event) {
+    event.preventDefault();
+    if (!editing || saving) return;
+    if (!draft.nombre.trim() || draft.precio === "" || !Number.isFinite(Number(draft.precio)) || Number(draft.precio) < 0) {
+      setError("Escribe un nombre y un precio igual o mayor que 0.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await updateServicio(service.id, cleanServiceForm(draft));
+      onSaved(updated);
+      setEditing(false);
+    } catch (saveError) {
+      setError(`No se pudo actualizar el servicio: ${saveError.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <form className="service-card" onSubmit={saveChanges}>
+    <div>
+      <span>Servicio</span>
+      <strong className="service-value">{editing ?
+        <input className="service-inline-input" aria-label="Nombre del servicio" value={draft.nombre} required disabled={saving}
+          onChange={(event) => setDraft({ ...draft, nombre: event.target.value })} /> : service.nombre}
+      </strong>
+    </div>
+    {editing ? <textarea className="service-inline-description" aria-label="Descripción del servicio" value={draft.descripcion} disabled={saving}
+      onChange={(event) => setDraft({ ...draft, descripcion: event.target.value })} /> :
+      <p className="service-description">{service.descripcion || "Sin descripción registrada"}</p>}
+    <footer>
+      <span>Precio base {editing ? "(L)" : ""}</span>
+      <strong className="service-value">{editing ?
+        <input className="service-inline-input" aria-label="Precio del servicio en lempiras" type="number" min="0" step="0.01" value={draft.precio} required disabled={saving}
+          onChange={(event) => setDraft({ ...draft, precio: event.target.value })} /> : formatCurrency(service.precio)}
+      </strong>
+    </footer>
+    {error && <Notice type="error">{error}</Notice>}
+    <div className="inventory-actions">
+      {editing ? <>
+        <button key="guardar" className="primary-action" type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar"}</button>
+        <button key="cancelar" className="ghost-action" type="button" disabled={saving} onClick={() => { setEditing(false); setError(""); }}>Cancelar</button>
+      </> : <button key="editar" className="ghost-action" type="button" onClick={startEditing} aria-label={`Editar ${service.nombre}`}>Editar</button>}
+    </div>
+  </form>;
 }
 
 function emptyServiceForm() {

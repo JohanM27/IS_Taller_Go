@@ -1,18 +1,16 @@
 import { supabase } from "./supabaseClient";
 import { formatCurrency } from "../utils/formatters";
+import { readAll } from "./readAll";
 
 export async function getOrdenes() {
-  const { data, error } = await supabase
+  const data = await readAll(() => supabase
     .from("resumen_ordenes")
     .select("id,codigo,cliente,vehiculo,estado,total_orden,total_pagado,saldo_pendiente,fecha_ingreso")
-    .order("fecha_ingreso", { ascending: false });
-
-  if (error) {
-    throw error;
-  }
+    .order("fecha_ingreso", { ascending: false }).order("id"));
 
   return data.map((order) => ({
     id: order.id,
+    fechaIngreso: order.fecha_ingreso,
     codigo: order.codigo,
     cliente: order.cliente,
     vehiculo: order.vehiculo,
