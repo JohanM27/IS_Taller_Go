@@ -23,6 +23,7 @@ export function Caja({ onPaymentsChanged }) {
 
   const [form, setForm] = useState(emptyPaymentForm());
   const [itemForm, setItemForm] = useState({ tipo: "repuesto", id: "", cantidad: 1 });
+  const [orderSearch, setOrderSearch] = useState("");
   
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,22 +38,30 @@ export function Caja({ onPaymentsChanged }) {
   const [saldoInicial, setSaldoInicial] = useState("");
   const [saldoCaja, setSaldoCaja] = useState(0);
 
+  const [lastPaymentTicket, setLastPaymentTicket] = useState(null);
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      setError("Configura las variables de Supabase para cargar caja real.");
+      setError("Configura las variables de Supabase para cargar la caja.");
       return;
     }
     loadCashierData();
   }, []);
 
-  const pendingOrders = useMemo(
-    () => orders.filter((order) => Number(order.saldoPendienteRaw ?? 0) > 0 || Number(order.totalRaw ?? 0) === 0),
-    [orders]
-  );
+  const pendingOrders = useMemo(() => {
+    const list = orders.filter((order) => Number(order.saldoPendienteRaw ?? 0) > 0 || Number(order.totalRaw ?? 0) === 0);
+    if (!orderSearch.trim()) return list;
+    const term = orderSearch.toLowerCase();
+    return list.filter(o => 
+      o.cliente?.toLowerCase().includes(term) ||
+      o.codigo?.toLowerCase().includes(term) ||
+      o.vehiculo?.toLowerCase().includes(term)
+    );
+  }, [orders, orderSearch]);
 
   const selectedOrder = useMemo(
-    () => pendingOrders.find((order) => order.id === form.orden_id),
-    [pendingOrders, form.orden_id]
+    () => orders.find((order) => order.id === form.orden_id),
+    [orders, form.orden_id]
   );
 
   const selectedItem = useMemo(() => {
@@ -93,6 +102,15 @@ export function Caja({ onPaymentsChanged }) {
     return { subtotal, isv, total, pagado, saldo };
   }, [selectedOrder, orderDetails]);
 
+  const cambio = useMemo(() => {
+    const recibido = Number(form.monto || 0);
+    const aPagar = Number(breakdown.saldo || 0);
+    if (recibido > aPagar && aPagar > 0) {
+      return recibido - aPagar;
+    }
+    return 0;
+  }, [form.monto, breakdown.saldo]);
+
   async function loadCashierData() {
     setLoading(true);
     setTurnLoading(true);
@@ -112,7 +130,7 @@ export function Caja({ onPaymentsChanged }) {
       setRepuestos(reps);
       setServicios(servs);
     } catch (loadError) {
-      setError(`No se pudo cargar la info: ${loadError.message}`);
+      setError(`No se pudo cargar la información: ${loadError.message}`);
     } finally {
       setLoading(false);
       setTurnLoading(false);
@@ -181,19 +199,18 @@ export function Caja({ onPaymentsChanged }) {
         });
       }
       
-      // Reload order details and orders to get new totals
       const [ordersData, updatedRepuestos] = await Promise.all([getOrdenes(), getRepuestos()]);
       setOrders(ordersData);
       setRepuestos(updatedRepuestos);
       await loadOrderDetails(selectedOrder.id);
       
       setItemForm({ tipo: "repuesto", id: "", cantidad: 1 });
-      setMessage("Item agregado a la cuenta.");
+      setMessage("Ítem agregado correctamente a la orden.");
     } catch (err) {
       const message = err.message?.includes("Stock insuficiente")
         ? "Stock insuficiente para el repuesto seleccionado."
         : err.message;
-      setError(`Error al agregar item: ${message}`);
+      setError(`Error al agregar ítem: ${message}`);
     } finally {
       setAddingItem(false);
     }
@@ -231,9 +248,19 @@ export function Caja({ onPaymentsChanged }) {
         setSaldoCaja((prev) => prev + Number(form.monto));
       }
 
+      setLastPaymentTicket({
+        orden: selectedOrder,
+        detalles: [...orderDetails],
+        breakdown: { ...breakdown },
+        montoRecibido: Number(form.monto),
+        cambioEntregado: cambio,
+        metodo: form.metodo,
+        fecha: new Date().toLocaleString("es-HN")
+      });
+
       setForm(emptyPaymentForm());
       setOrderDetails([]);
-      setMessage("Pago registrado correctamente.");
+      setMessage("Pago registrado y factura emitida correctamente.");
       await loadCashierData();
       await onPaymentsChanged?.();
     } catch (paymentError) {
@@ -261,16 +288,16 @@ export function Caja({ onPaymentsChanged }) {
       setCurrentTurn(turn);
       setCajaAbierta(true);
       setSaldoCaja(Number(turn.saldo_sistema ?? 0));
-      setMessage(`Caja abierta con ${formatCurrency(Number(turn.saldo_inicial))}`);
+      setMessage(`Turno de caja abierto con ${formatCurrency(Number(turn.saldo_inicial))}`);
     } catch (turnError) {
-      setError(`No se pudo abrir caja: ${turnError.message}`);
+      setError(`No se pudo abrir la caja: ${turnError.message}`);
     } finally {
       setTurnLoading(false);
     }
   }
 
   async function handleCerrarCaja() {
-    if(!window.confirm(`¿Estás seguro de cerrar la caja con ${formatCurrency(saldoCaja)} en sistema?`)) return;
+    if(!window.confirm(`¿Confirma el cierre del turno de caja con ${formatCurrency(saldoCaja)} en sistema?`)) return;
     setMessage("");
     setError("");
     if (!currentTurn) {
@@ -284,11 +311,11 @@ export function Caja({ onPaymentsChanged }) {
       await cerrarTurnoCaja(currentTurn.id, saldoCaja);
       setCajaAbierta(false);
       setCurrentTurn(null);
-      setMessage(`Caja cerrada. Total entregado: ${formatCurrency(saldoCaja)}`);
+      setMessage(`Turno de caja cerrado exitosamente. Arqueo final: ${formatCurrency(saldoCaja)}`);
       setSaldoInicial("");
       setSaldoCaja(0);
     } catch (turnError) {
-      setError(`No se pudo cerrar caja: ${turnError.message}`);
+      setError(`No se pudo cerrar la caja: ${turnError.message}`);
     } finally {
       setTurnLoading(false);
     }
@@ -297,28 +324,62 @@ export function Caja({ onPaymentsChanged }) {
   if (turnLoading && !cajaAbierta) {
     return (
       <div className="page-stack">
-        <section className="hero-band"><h2>Cargando turno...</h2></section>
+        <section className="pos-apertura-card" style={{ padding: '40px' }}>
+          <h2>Cargando estado del turno...</h2>
+        </section>
       </div>
     );
   }
 
+  // APERTURA DE CAJA
   if (!cajaAbierta) {
     return (
       <div className="page-stack">
-        <section className="hero-band">
-          <div><span className="section-label">Punto de venta</span><h2>Apertura de caja</h2></div>
-        </section>
         {message && <Notice type="success">{message}</Notice>}
         {error && <Notice type="error">{error}</Notice>}
-        <section className="panel form-panel" style={{ maxWidth: '500px', margin: '0 auto' }}>
-          <h2>Iniciar turno</h2>
+
+        <section className="pos-apertura-card">
+          <span className="section-label">Módulo de Caja</span>
+          <h2 style={{ fontSize: '24px', margin: '8px 0 12px', fontWeight: '800' }}>Apertura de Turno de Caja</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>
+            Ingrese el fondo inicial en efectivo para habilitar el registro de facturación y cobros.
+          </p>
+
           <form className="form-grid" onSubmit={handleAbrirCaja}>
-            <label className="field-wide">
-              <span className="field-label">Fondo de caja (lempiras) *</span>
-              <input type="number" min="0" step="0.01" value={saldoInicial} onChange={(e) => setSaldoInicial(e.target.value)} required style={{ fontSize: '24px', padding: '16px', textAlign: 'right' }} />
-            </label>
-            <div className="form-actions field-wide">
-              <button className="primary-action" disabled={turnLoading} type="submit" style={{ width: '100%', fontSize: '18px', padding: '16px' }}>{turnLoading ? "Abriendo..." : "Abrir caja"}</button>
+            <div className="field-wide">
+              <label style={{ textAlign: 'left', fontWeight: '800' }}>Fondo Inicial (Lempiras) *</label>
+              <div className="pos-currency-input-wrapper" style={{ marginTop: '8px' }}>
+                <span className="pos-currency-prefix">L</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={saldoInicial}
+                  onChange={(e) => setSaldoInicial(e.target.value)}
+                  placeholder="0.00"
+                  required
+                  className="pos-currency-input"
+                  style={{ textAlign: 'left', paddingLeft: '50px' }}
+                />
+              </div>
+
+              <div className="caja-presets-bar">
+                <button type="button" className="caja-preset-btn" onClick={() => setSaldoInicial("500")}>+ L 500</button>
+                <button type="button" className="caja-preset-btn" onClick={() => setSaldoInicial("1000")}>+ L 1,000</button>
+                <button type="button" className="caja-preset-btn" onClick={() => setSaldoInicial("2000")}>+ L 2,000</button>
+                <button type="button" className="caja-preset-btn" onClick={() => setSaldoInicial("5000")}>+ L 5,000</button>
+              </div>
+            </div>
+
+            <div className="field-wide" style={{ marginTop: '16px' }}>
+              <button
+                className="primary-action"
+                disabled={turnLoading}
+                type="submit"
+                style={{ width: '100%', fontSize: '16px', padding: '14px', borderRadius: '12px', height: '52px' }}
+              >
+                {turnLoading ? "Abriendo..." : "Abrir Turno de Caja"}
+              </button>
             </div>
           </form>
         </section>
@@ -326,13 +387,128 @@ export function Caja({ onPaymentsChanged }) {
     );
   }
 
+  // PANTALLA PRINCIPAL DE CAJA Y FACTURACIÓN
   return (
     <div className="page-stack">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-         <div className="hero-meta" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div><span>En Caja (Total)</span><strong style={{ fontSize: '24px', color: 'var(--success)' }}>{formatCurrency(saldoCaja)}</strong></div>
-            <button className="ghost-action" onClick={handleCerrarCaja} style={{ color: 'var(--danger)', background: '#fee2e2' }}>Cerrar Caja</button>
-         </div>
+      {/* MODAL DE COMPROBANTE IMPRIMIBLE */}
+      {lastPaymentTicket && (
+        <div className="caja-modal-backdrop">
+          <div className="caja-receipt-card">
+            <div className="caja-receipt-body">
+              <h2>TALLER GO</h2>
+              <p>Comprobante de Pago y Facturación<br/>RTN: 08011995048392 | Tegucigalpa, M.D.C.</p>
+              
+              <div className="caja-receipt-divider"></div>
+
+              <div className="caja-receipt-row">
+                <span>Fecha:</span>
+                <span>{lastPaymentTicket.fecha}</span>
+              </div>
+              <div className="caja-receipt-row">
+                <span>Orden:</span>
+                <strong>#{lastPaymentTicket.orden.codigo}</strong>
+              </div>
+              <div className="caja-receipt-row">
+                <span>Cliente:</span>
+                <span>{lastPaymentTicket.orden.cliente}</span>
+              </div>
+              <div className="caja-receipt-row">
+                <span>Vehículo:</span>
+                <span>{lastPaymentTicket.orden.vehiculo}</span>
+              </div>
+
+              <div className="caja-receipt-divider"></div>
+
+              {lastPaymentTicket.detalles.map(item => (
+                <div key={item.id} className="caja-receipt-row">
+                  <span>{item.cantidad}x {item.nombre}</span>
+                  <span>{formatCurrency(item.subtotal)}</span>
+                </div>
+              ))}
+
+              <div className="caja-receipt-divider"></div>
+
+              <div className="caja-receipt-row">
+                <span>Subtotal:</span>
+                <span>{formatCurrency(lastPaymentTicket.breakdown.subtotal)}</span>
+              </div>
+              <div className="caja-receipt-row">
+                <span>ISV (15%):</span>
+                <span>{formatCurrency(lastPaymentTicket.breakdown.isv)}</span>
+              </div>
+              <div className="caja-receipt-row" style={{ fontSize: '16px', fontWeight: '800', marginTop: '6px' }}>
+                <span>Total Facturado:</span>
+                <span>{formatCurrency(lastPaymentTicket.breakdown.total)}</span>
+              </div>
+
+              <div className="caja-receipt-divider"></div>
+
+              <div className="caja-receipt-row">
+                <span>Método de Pago:</span>
+                <span style={{ textTransform: 'capitalize', fontWeight: '700' }}>{lastPaymentTicket.metodo}</span>
+              </div>
+              <div className="caja-receipt-row">
+                <span>Monto Recibido:</span>
+                <span>{formatCurrency(lastPaymentTicket.montoRecibido)}</span>
+              </div>
+              {lastPaymentTicket.cambioEntregado > 0 && (
+                <div className="caja-receipt-row" style={{ fontWeight: '800', color: 'var(--success)' }}>
+                  <span>Cambio Entregado:</span>
+                  <span>{formatCurrency(lastPaymentTicket.cambioEntregado)}</span>
+                </div>
+              )}
+
+              <div className="caja-receipt-divider"></div>
+              <p style={{ marginTop: '14px', fontWeight: '700', color: 'var(--ink)' }}>¡Gracias por preferir nuestros servicios!</p>
+            </div>
+
+            <div className="caja-receipt-actions">
+              <button
+                className="primary-action"
+                onClick={() => window.print()}
+                style={{ flex: 1, borderRadius: '10px' }}
+              >
+                Imprimir Factura
+              </button>
+              <button
+                className="ghost-action"
+                onClick={() => setLastPaymentTicket(null)}
+                style={{ borderRadius: '10px' }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CABECERA DE ESTADO DE CAJA */}
+      <div className="caja-header-bar">
+        <div className="caja-header-main">
+          <div className="caja-status-pill">
+            <span className="caja-status-dot"></span>
+            Turno Activo
+          </div>
+          <div className="caja-total-box">
+            <span>Total Registrado en Caja</span>
+            <strong>{formatCurrency(saldoCaja)}</strong>
+          </div>
+        </div>
+
+        <button
+          className="ghost-action"
+          onClick={handleCerrarCaja}
+          style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            color: '#f87171',
+            borderRadius: '10px',
+            padding: '10px 16px',
+            fontWeight: '700'
+          }}
+        >
+          Cerrar Turno de Caja
+        </button>
       </div>
 
       {message && <Notice type="success">{message}</Notice>}
@@ -340,236 +516,341 @@ export function Caja({ onPaymentsChanged }) {
 
       <div className="split" style={{ gridTemplateColumns: '1.2fr 1fr' }}>
         
-        {/* LEFT COLUMN - TICKET & PRODUCT ADDER */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* COLUMNA IZQUIERDA: DETALLE DE CUENTA & AGREGAR ÍTEMS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* TICKET PANEL */}
-          <section className="panel" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', minHeight: '400px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '20px', borderBottom: '2px dashed #cbd5e1', textAlign: 'center' }}>
-              <h2 style={{ fontSize: '24px', margin: '0' }}>Ticket de pago</h2>
-              <p style={{ color: 'var(--muted)', margin: '4px 0 0 0' }}>TallerGo POS</p>
+          {/* VISTA DE FACTURA EN TIEMPO REAL */}
+          <section className="pos-ticket-panel" style={{ minHeight: '420px' }}>
+            <div className="pos-ticket-header">
+              <div className="pos-ticket-title">
+                <div>
+                  <h2 style={{ fontSize: '18px', margin: 0, fontWeight: '800' }}>Detalle de la Orden</h2>
+                  <p style={{ color: 'var(--muted)', margin: 0, fontSize: '12px' }}>Resumen de servicios y repuestos</p>
+                </div>
+              </div>
+
+              {selectedOrder && (
+                <span className="status done" style={{ fontSize: '12px' }}>
+                  {selectedOrder.estado?.toUpperCase()}
+                </span>
+              )}
             </div>
             
-            <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div className="pos-ticket-body">
               {!selectedOrder ? (
-                <div style={{ textAlign: 'center', color: 'var(--muted)', margin: 'auto' }}>
-                  Selecciona un cliente u orden a la derecha.
+                <div style={{ textAlign: 'center', color: 'var(--muted)', margin: 'auto', padding: '40px 20px' }}>
+                  <h3 style={{ margin: '0 0 4px', color: 'var(--ink)' }}>Ninguna orden seleccionada</h3>
+                  <p style={{ fontSize: '14px', margin: 0 }}>Seleccione un cliente en la sección de cobro a la derecha.</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ marginBottom: '20px', fontSize: '14px' }}>
-                    <strong>Orden: </strong> {selectedOrder.codigo}<br/>
-                    <strong>Cliente: </strong> {selectedOrder.cliente}<br/>
-                    <strong>Vehículo: </strong> {selectedOrder.vehiculo}
+                  
+                  <div className="pos-ticket-customer-info">
+                    <div>
+                      <span>Código de Orden</span>
+                      <strong>#{selectedOrder.codigo}</strong>
+                    </div>
+                    <div>
+                      <span>Cliente</span>
+                      <strong>{selectedOrder.cliente}</strong>
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <span>Vehículo</span>
+                      <strong>{selectedOrder.vehiculo}</strong>
+                    </div>
                   </div>
 
-                  <table style={{ width: '100%', marginBottom: '20px', background: 'transparent' }}>
+                  <table className="pos-ticket-table">
                     <thead>
                       <tr>
-                        <th style={{ background: 'transparent', padding: '8px 0', fontSize: '12px', color: 'var(--muted)' }}>Cant.</th>
-                        <th style={{ background: 'transparent', padding: '8px 0', fontSize: '12px', color: 'var(--muted)' }}>Descripción</th>
-                        <th style={{ background: 'transparent', padding: '8px 0', textAlign: 'right', fontSize: '12px', color: 'var(--muted)' }}>Total</th>
+                        <th style={{ width: '50px' }}>Cant.</th>
+                        <th>Descripción</th>
+                        <th style={{ textAlign: 'right' }}>Total</th>
                       </tr>
                     </thead>
                     <tbody>
                       {orderDetails.length === 0 ? (
-                        <tr><td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: 'var(--muted)' }}>Ticket vacío. Agrega items abajo.</td></tr>
+                        <tr>
+                          <td colSpan="3" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                            No hay servicios ni repuestos cargados en esta orden.
+                          </td>
+                        </tr>
                       ) : (
                         orderDetails.map(item => (
                           <tr key={item.id}>
-                            <td style={{ padding: '8px 0', fontWeight: 'bold' }}>{item.cantidad}x</td>
-                            <td style={{ padding: '8px 0' }}>{item.nombre} <br/><small style={{color:'var(--muted)'}}>{item.tipo} a {formatCurrency(item.precio_unitario)} c/u</small></td>
-                            <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(item.subtotal)}</td>
+                            <td style={{ fontWeight: '800', color: 'var(--accent-dark)' }}>{item.cantidad}x</td>
+                            <td>
+                              <strong>{item.nombre}</strong>
+                              <span className={`pos-item-type-tag ${item.tipo}`}>
+                                {item.tipo}
+                              </span>
+                              <br/>
+                              <small style={{ color: 'var(--muted)' }}>
+                                {formatCurrency(item.precio_unitario)} c/u
+                              </small>
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                              {formatCurrency(item.subtotal)}
+                            </td>
                           </tr>
                         ))
                       )}
                     </tbody>
                   </table>
 
-                  <div style={{ marginTop: 'auto', display: 'grid', gap: '8px', borderTop: '2px dashed var(--line)', paddingTop: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
-                      <span>Subtotal:</span><span>{formatCurrency(breakdown.subtotal)}</span>
+                  <div className="pos-ticket-summary">
+                    <div className="pos-summary-row">
+                      <span>Subtotal:</span>
+                      <span>{formatCurrency(breakdown.subtotal)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
-                      <span>ISV (15%):</span><span>{formatCurrency(breakdown.isv)}</span>
+                    <div className="pos-summary-row">
+                      <span>ISV (15%):</span>
+                      <span>{formatCurrency(breakdown.isv)}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '20px', marginTop: '8px' }}>
-                      <span>Total:</span><span>{formatCurrency(breakdown.total)}</span>
+                    <div className="pos-summary-row total">
+                      <span>Total de Orden:</span>
+                      <span>{formatCurrency(breakdown.total)}</span>
                     </div>
                     
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)', borderTop: '1px solid var(--line)', paddingTop: '8px', marginTop: '8px' }}>
-                      <span>Abonado:</span><span>{formatCurrency(breakdown.pagado)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '24px', color: 'var(--danger)' }}>
-                      <span>Por pagar:</span><span>{formatCurrency(breakdown.saldo)}</span>
+                    {breakdown.pagado > 0 && (
+                      <div className="pos-summary-row paid">
+                        <span>Abonos recibidos:</span>
+                        <span>- {formatCurrency(breakdown.pagado)}</span>
+                      </div>
+                    )}
+
+                    <div className="pos-summary-row due">
+                      <span>Saldo Pendiente:</span>
+                      <span>{formatCurrency(breakdown.saldo)}</span>
                     </div>
                   </div>
+
                 </div>
               )}
             </div>
           </section>
 
-          {/* QUICK ADD ITEM BAR */}
-          <section className="panel" style={{ padding: '16px', background: 'var(--surface)' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '12px', marginTop: 0 }}>Agregar a la cuenta</h3>
-            <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-              <label style={{ flex: 1, fontSize: '12px' }}>
-                Tipo
-                <select 
-                  value={itemForm.tipo} 
-                  onChange={(e) => setItemForm({...itemForm, tipo: e.target.value, id: ""})}
-                  disabled={!selectedOrder}
-                  style={{ minHeight: '36px', width: '100%' }}
-                >
-                  <option value="repuesto">Repuesto</option>
-                  <option value="servicio">Servicio</option>
-                </select>
-              </label>
-              
-              <label style={{ flex: 3, fontSize: '12px' }}>
-                Producto o servicio
+          {/* FORMULARIO AGREGAR ÍTEMS */}
+          <section className="panel" style={{ borderRadius: '16px', padding: '20px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '800', marginBottom: '14px' }}>
+              Agregar Repuesto o Servicio a la Orden
+            </h3>
+            
+            <form onSubmit={handleAddItem} style={{ display: 'grid', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '10px' }}>
+                <label style={{ fontSize: '12px', minWidth: 0 }}>
+                  Categoría
+                  <select 
+                    value={itemForm.tipo} 
+                    onChange={(e) => setItemForm({...itemForm, tipo: e.target.value, id: ""})}
+                    disabled={!selectedOrder}
+                    style={{ fontWeight: '700', borderRadius: '10px', width: '100%', minWidth: 0 }}
+                  >
+                    <option value="repuesto">Repuesto</option>
+                    <option value="servicio">Servicio</option>
+                  </select>
+                </label>
+
+                <label style={{ fontSize: '12px', minWidth: 0 }}>
+                  Cant.
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={itemForm.cantidad} 
+                    onChange={(e) => setItemForm({...itemForm, cantidad: e.target.value})}
+                    disabled={!selectedOrder}
+                    required
+                    max={itemForm.tipo === "repuesto" && selectedItem ? Number(selectedItem.stock ?? 0) : undefined}
+                    style={{ textAlign: 'center', fontWeight: '800', borderRadius: '10px', width: '100%', minWidth: 0 }}
+                  />
+                </label>
+              </div>
+
+              <label style={{ fontSize: '12px', minWidth: 0 }}>
+                Catálogo
                 <select 
                   value={itemForm.id} 
                   onChange={(e) => setItemForm({...itemForm, id: e.target.value})}
                   disabled={!selectedOrder}
                   required
-                  style={{ minHeight: '36px', width: '100%' }}
+                  style={{ fontWeight: '700', borderRadius: '10px', width: '100%', minWidth: 0 }}
                 >
                   <option value="">Seleccionar...</option>
                   {itemForm.tipo === "repuesto" 
                     ? repuestos.map(r => (
                         <option disabled={Number(r.stock ?? 0) <= 0} key={r.id} value={r.id}>
-                          {r.nombre} - {formatCurrency(r.precio_venta)} - Stock: {r.stock}
+                          {r.nombre} ({formatCurrency(r.precio_venta)}) {Number(r.stock ?? 0) <= 0 ? "[Agotado]" : `[Stock: ${r.stock}]`}
                         </option>
                       ))
-                    : servicios.map(s => <option key={s.id} value={s.id}>{s.nombre} - {formatCurrency(s.precio)}</option>)
+                    : servicios.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.nombre} ({formatCurrency(s.precio)})
+                        </option>
+                      ))
                   }
                 </select>
               </label>
 
-              <label style={{ flex: 1, fontSize: '12px' }}>
-                Cant.
-                <input 
-                  type="number" 
-                  min="1" 
-                  value={itemForm.cantidad} 
-                  onChange={(e) => setItemForm({...itemForm, cantidad: e.target.value})}
-                  disabled={!selectedOrder}
-                  required
-                  max={itemForm.tipo === "repuesto" && selectedItem ? Number(selectedItem.stock ?? 0) : undefined}
-                  style={{ minHeight: '36px', width: '100%' }}
-                />
-              </label>
-
               <button 
-                className="primary-action" 
+                className="ghost-action" 
                 type="submit" 
                 disabled={
                   !selectedOrder ||
                   addingItem ||
                   (itemForm.tipo === "repuesto" && selectedItem && Number(selectedItem.stock ?? 0) <= 0)
                 }
-                style={{ minHeight: '36px', padding: '0 16px' }}
+                style={{ 
+                  borderRadius: '10px', height: '42px', fontWeight: '800',
+                  background: 'var(--accent-soft)', color: 'var(--accent-dark)'
+                }}
               >
-                Agregar
+                {addingItem ? "Agregando..." : "Agregar a la Orden"}
               </button>
             </form>
-            {itemForm.tipo === "repuesto" && selectedItem && (
-              <p style={{ color: "var(--muted)", fontSize: "12px", margin: "8px 0 0" }}>
-                Existencia disponible: {selectedItem.stock}
-              </p>
-            )}
           </section>
 
         </div>
 
-        {/* RIGHT COLUMN - POS TERMINAL */}
-        <section className="panel" style={{ padding: '30px' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%' }}>
+        {/* COLUMNA DERECHA: PROCESAMIENTO DE PAGO */}
+        <section className="panel" style={{ borderRadius: '16px', padding: '24px', background: '#ffffff' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
             
-            {/* 1. Seleccionar Orden */}
+            <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
+              <h2 style={{ fontSize: '18px', margin: 0, fontWeight: '800' }}>Procesamiento de Pago</h2>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Ingrese los datos para cobrar la factura</span>
+            </div>
+
+            {/* SELECCIONAR ORDEN */}
             <div>
-              <label style={{ fontSize: '16px', marginBottom: '8px', display: 'block' }}>1. Seleccionar cliente u orden</label>
+              <label style={{ fontSize: '13px', marginBottom: '6px', color: 'var(--ink)', fontWeight: '800' }}>
+                1. Orden de Trabajo por Cobrar *
+              </label>
+
+              <input
+                type="text"
+                placeholder="Buscar cliente, placa o número..."
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+                style={{ width: '100%', marginBottom: '8px', fontSize: '13px', borderRadius: '10px' }}
+              />
+
               <select
                 value={form.orden_id}
                 onChange={(event) => updateField("orden_id", event.target.value)}
                 required
-                style={{ width: '100%', fontSize: '16px', padding: '12px' }}
+                style={{ width: '100%', fontSize: '15px', padding: '12px 14px', borderRadius: '10px', fontWeight: '700' }}
               >
-                <option value="">Buscar cuenta abierta</option>
+                <option value="">-- Seleccionar Orden --</option>
                 {pendingOrders.map((order) => (
                   <option key={order.id ?? order.codigo} value={order.id}>
-                    {order.cliente} ({order.codigo})
+                    {order.cliente} — #{order.codigo} (Pendiente: {formatCurrency(order.saldoPendienteRaw)})
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 2. Método de pago */}
+            {/* MÉTODO DE PAGO (SOLO 3 OPCIONES: EFECTIVO, TARJETA, TRANSFERENCIA) */}
             <div>
-               <label style={{ fontSize: '16px', marginBottom: '8px', display: 'block' }}>2. Método de pago</label>
-               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+               <label style={{ fontSize: '13px', marginBottom: '8px', color: 'var(--ink)', fontWeight: '800' }}>
+                 2. Método de Pago *
+               </label>
+               <div className="caja-payment-methods">
                   <button 
                     type="button" 
+                    className={`caja-method-btn ${form.metodo === 'efectivo' ? 'active' : ''}`}
                     onClick={() => updateField("metodo", "efectivo")}
-                    style={{ 
-                      padding: '16px', fontSize: '16px', borderRadius: '12px',
-                      border: form.metodo === 'efectivo' ? '2px solid var(--accent)' : '1px solid var(--line)',
-                      background: form.metodo === 'efectivo' ? 'var(--accent-soft)' : '#fff',
-                      color: form.metodo === 'efectivo' ? 'var(--accent-dark)' : 'var(--ink)',
-                      fontWeight: '800', cursor: 'pointer'
-                    }}
-                  >Efectivo</button>
+                  >
+                    Efectivo
+                    <small>Pago en contado</small>
+                  </button>
                   <button 
                     type="button" 
+                    className={`caja-method-btn ${form.metodo === 'tarjeta' ? 'active' : ''}`}
                     onClick={() => updateField("metodo", "tarjeta")}
-                    style={{ 
-                      padding: '16px', fontSize: '16px', borderRadius: '12px',
-                      border: form.metodo === 'tarjeta' ? '2px solid var(--accent)' : '1px solid var(--line)',
-                      background: form.metodo === 'tarjeta' ? 'var(--accent-soft)' : '#fff',
-                      color: form.metodo === 'tarjeta' ? 'var(--accent-dark)' : 'var(--ink)',
-                      fontWeight: '800', cursor: 'pointer'
-                    }}
-                  >Tarjeta</button>
+                  >
+                    Tarjeta
+                    <small>Débito / Crédito</small>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`caja-method-btn ${form.metodo === 'transferencia' ? 'active' : ''}`}
+                    onClick={() => updateField("metodo", "transferencia")}
+                  >
+                    Transferencia
+                    <small>Depósito bancario</small>
+                  </button>
                </div>
             </div>
 
-            {/* 3. Monto a pagar */}
+            {/* MONTO A RECIBIR */}
             <div>
-              <label style={{ fontSize: '16px', marginBottom: '8px', display: 'block' }}>3. Monto a recibir</label>
-              <input
-                min="0.01"
-                onChange={(event) => updateField("monto", event.target.value)}
-                placeholder="0.00"
-                required
-                step="0.01"
-                type="number"
-                value={form.monto}
-                style={{ width: '100%', fontSize: '32px', padding: '20px', textAlign: 'right', fontWeight: '900', color: 'var(--accent-dark)' }}
-              />
+              <label style={{ fontSize: '13px', marginBottom: '6px', color: 'var(--ink)', fontWeight: '800' }}>
+                3. Monto Recibido *
+              </label>
               
+              <div className="pos-currency-input-wrapper">
+                <span className="pos-currency-prefix">L</span>
+                <input
+                  min="0.01"
+                  onChange={(event) => updateField("monto", event.target.value)}
+                  placeholder="0.00"
+                  required
+                  step="0.01"
+                  type="number"
+                  value={form.monto}
+                  className="pos-currency-input"
+                />
+              </div>
+
+              {/* Botones de sugerencia rápida */}
               {selectedOrder && (
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                  <button type="button" className="ghost-action" onClick={() => updateField("monto", breakdown?.saldo)}>Exacto</button>
-                  <button type="button" className="ghost-action" onClick={() => updateField("monto", "500")}>+ 500</button>
-                  <button type="button" className="ghost-action" onClick={() => updateField("monto", "1000")}>+ 1000</button>
+                <div className="caja-presets-bar">
+                  <button type="button" className="caja-preset-btn" onClick={() => updateField("monto", breakdown?.saldo)}>Monto Exacto</button>
+                  <button type="button" className="caja-preset-btn" onClick={() => updateField("monto", "100")}>L 100</button>
+                  <button type="button" className="caja-preset-btn" onClick={() => updateField("monto", "500")}>L 500</button>
+                  <button type="button" className="caja-preset-btn" onClick={() => updateField("monto", "1000")}>L 1,000</button>
+                </div>
+              )}
+
+              {/* CÁLCULO DE CAMBIO */}
+              {cambio > 0 && (
+                <div className="pos-change-banner">
+                  <span>Cambio a Entregar:</span>
+                  <span className="pos-change-amount">{formatCurrency(cambio)}</span>
                 </div>
               )}
             </div>
 
-            {/* 4. Acción */}
-            <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
+            {/* REFERENCIA OPCIONAL */}
+            {form.metodo !== 'efectivo' && (
+              <div>
+                <label style={{ fontSize: '12px' }}>Número de Referencia o Transacción</label>
+                <input 
+                  type="text" 
+                  value={form.referencia} 
+                  onChange={(e) => updateField("referencia", e.target.value)}
+                  placeholder="Ej: Ref #123456"
+                  style={{ width: '100%', borderRadius: '10px' }}
+                />
+              </div>
+            )}
+
+            {/* BOTÓN DE ACCIÓN FINAL */}
+            <div style={{ marginTop: 'auto', paddingTop: '10px' }}>
               <button 
                 className="primary-action" 
                 disabled={saving || !selectedOrder || (orderDetails.length === 0)} 
                 type="submit"
                 style={{ 
-                  width: '100%', fontSize: '20px', padding: '24px', 
-                  background: (saving || !selectedOrder || orderDetails.length === 0) ? 'var(--line)' : 'var(--success)', 
-                  boxShadow: '0 10px 25px rgba(16, 185, 129, 0.4)' 
+                  width: '100%', fontSize: '16px', padding: '16px', borderRadius: '12px',
+                  background: (saving || !selectedOrder || orderDetails.length === 0) 
+                    ? 'var(--surface-muted)' 
+                    : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', 
+                  boxShadow: (saving || !selectedOrder || orderDetails.length === 0) ? 'none' : '0 8px 20px rgba(16, 185, 129, 0.3)',
+                  height: '52px'
                 }}
               >
-                {saving ? "Procesando..." : "Procesar pago"}
+                {saving ? "Procesando pago..." : "REGISTRAR PAGO Y FACTURAR"}
               </button>
             </div>
             

@@ -1348,3 +1348,585 @@ textarea::placeholder {
 .user-profile span {
   color: var(--muted);
 }
+
+/* ==========================================================================
+   POS CAJA TERMINAL - STYLES ULTRA MODERNOS
+   ========================================================================== */
+
+.pos-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25);
+  margin-bottom: 20px;
+}
+
+.pos-header-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.pos-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pos-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.pos-header-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-header-stat span {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pos-header-stat strong {
+  font-size: 24px;
+  color: #38bdf8;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+/* POS Startup Card */
+.pos-apertura-card {
+  max-width: 480px;
+  margin: 30px auto;
+  padding: 36px;
+  border-radius: 24px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.pos-apertura-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--blue) 100%);
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.3);
+}
+
+.pos-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pos-preset-chip {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pos-preset-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+/* Digital Ticket Styles */
+.pos-ticket-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-ticket-header {
+  padding: 20px 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom: 2px dashed #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pos-ticket-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pos-ticket-body {
+  padding: 20px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-ticket-customer-info {
+  background: var(--surface-soft);
+  padding: 14px 18px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  font-size: 13px;
+}
+
+.pos-ticket-customer-info div span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pos-ticket-customer-info div strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.pos-ticket-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+  margin-bottom: 16px;
+}
+
+.pos-ticket-table th {
+  background: transparent;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--line);
+}
+
+.pos-ticket-table td {
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-top: 1px solid rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  font-size: 13px;
+}
+
+.pos-ticket-table tr td:first-child {
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+.pos-ticket-table tr td:last-child {
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.pos-item-type-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-left: 6px;
+}
+
+.pos-item-type-tag.repuesto {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.pos-item-type-tag.servicio {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.pos-ticket-summary {
+  margin-top: auto;
+  border-top: 2px dashed #cbd5e1;
+  padding-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.pos-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.pos-summary-row.total {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.pos-summary-row.paid {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.pos-summary-row.due {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--danger);
+  background: #fef2f2;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  margin-top: 6px;
+}
+
+/* Method selector buttons */
+.pos-methods-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.pos-method-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.pos-method-card:hover {
+  border-color: #a5b4fc;
+  background: var(--surface-soft);
+}
+
+.pos-method-card.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+}
+
+.pos-method-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface-soft);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+.pos-method-card.active .pos-method-icon {
+  background: #ffffff;
+  color: var(--accent);
+}
+
+/* Change banner */
+.pos-change-banner {
+  margin-top: 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 800;
+  animation: fadeIn 0.2s ease;
+}
+
+.pos-change-amount {
+  font-size: 22px;
+  font-weight: 900;
+  color: #047857;
+}
+
+/* Big Currency Input */
+.pos-currency-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pos-currency-prefix {
+  position: absolute;
+  left: 20px;
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--accent-dark);
+  pointer-events: none;
+}
+
+.pos-currency-input {
+  width: 100%;
+  font-size: 32px !important;
+  font-weight: 900 !important;
+  padding: 16px 20px 16px 50px !important;
+  text-align: right;
+  border-radius: 16px !important;
+  border: 2px solid var(--line) !important;
+  color: var(--accent-dark) !important;
+  background: #ffffff !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.pos-currency-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15) !important;
+}
+
+/* ==========================================================================
+   ESTRUCTURA DE CAJA Y FACTURACIÓN ENTERPRISE (SIN EMOJIS)
+   ========================================================================== */
+
+.caja-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 28px;
+  border-radius: 16px;
+  background: #0f172a;
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+  margin-bottom: 24px;
+}
+
+.caja-header-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.caja-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.caja-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.caja-total-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.caja-total-box span {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.caja-total-box strong {
+  font-size: 24px;
+  color: #38bdf8;
+  font-weight: 800;
+}
+
+/* 3 Payment Methods Grid */
+.caja-payment-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.caja-method-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: center;
+  min-width: 0;
+}
+
+.caja-method-btn:hover {
+  border-color: #a5b4fc;
+  background: var(--surface-soft);
+}
+
+.caja-method-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.14);
+}
+
+.caja-method-btn small {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.caja-method-btn.active small {
+  color: var(--accent-dark);
+}
+
+/* Presets bar for cash inputs */
+.caja-presets-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+
+.caja-preset-btn {
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.caja-preset-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+/* Printable Clean Modal */
+.caja-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.caja-receipt-card {
+  width: min(440px, 100%);
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.caja-receipt-body {
+  padding: 32px 28px;
+  font-family: system-ui, sans-serif;
+}
+
+.caja-receipt-body h2 {
+  text-align: center;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.caja-receipt-body p {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 4px 0 16px;
+}
+
+.caja-receipt-divider {
+  border-top: 1px dashed var(--line);
+  margin: 16px 0;
+}
+
+.caja-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+
+.caja-receipt-actions {
+  padding: 18px 28px;
+  background: #f8fafc;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+}
+
+
+
